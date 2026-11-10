@@ -32,6 +32,20 @@ Rendering: Uses Leaflet.js to render actual OSM way coordinates as polygons on t
 
     <!-- Map Display (wrapper for FAB positioning) -->
     <div class="map-wrapper">
+      <!-- Info FAB (bottom-left of map area) -->
+      <button
+        @click="toggleBuildingInfo"
+        class="fab-button fab-info"
+        :class="{ 'is-active': showBuildingInfo }"
+        title="Building Information"
+      >
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="12" y1="16" x2="12" y2="12"></line>
+          <line x1="12" y1="8" x2="12.01" y2="8"></line>
+        </svg>
+      </button>
+
       <!-- Scanner Toggle FAB (bottom-right of map area) -->
       <button
         @click="toggleScanner"
@@ -46,6 +60,22 @@ Rendering: Uses Leaflet.js to render actual OSM way coordinates as polygons on t
           <path :d="xIconPath"/>
         </svg>
       </button>
+
+      <!-- Building Info Popup -->
+      <Transition name="slide-up">
+        <div v-if="showBuildingInfo" class="building-info-popup">
+          <div class="info-popup-header">
+            <h3>Building Information</h3>
+            <button @click="showBuildingInfo = false" class="btn-close" aria-label="Close info">&times;</button>
+          </div>
+          <div class="info-popup-content">
+            <p><strong>Museum:</strong> SMK - Statens Museum for Kunst</p>
+            <p><strong>Location:</strong> Copenhagen, Denmark</p>
+            <p><strong>Data Source:</strong> OpenStreetMap Indoor Mapping</p>
+            <p><strong>Note:</strong> Real room data from OSM contributors shows actual room polygons, corridors, and doors mapped by the community.</p>
+          </div>
+        </div>
+      </Transition>
 
       <!-- Leaflet map container -->
       <div id="osm-map" :class="{ 'map-display': true, 'disabled': isLoading }"></div>
@@ -129,6 +159,9 @@ const errorMessage = ref(null)
 // Drawer � single boolean, no animation-phase tracking needed
 const drawerOpen = ref(false)
 
+// Building info popup visibility
+const showBuildingInfo = ref(false)
+
 // OSM Data storage (not reactive, used in callbacks)
 let indoorWaysRef = [] // Array of { id, coordinates: [[lat,lon]], level, name }
 let nodeCache = {}     // Cache for node lookups by ID
@@ -149,6 +182,10 @@ function toggleScanner() {
 
 function closeDrawer() {
   drawerOpen.value = false
+}
+
+function toggleBuildingInfo() {
+  showBuildingInfo.value = !showBuildingInfo.value
 }
 
 // Methods
@@ -197,20 +234,6 @@ async function loadOSMData() {
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '� <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
     }).addTo(osmMapInstance.map);
-
-    // Add detailed SMK building information control - using OSM data approach
-    const infoControl = L.control({ position: 'bottomleft' });
-    infoControl.onAdd = function() {
-      const div = L.DomUtil.create('div', 'building-info');
-      div.innerHTML = `
-        <div style="background:white; padding:10px; border-radius:5px; box-shadow: 0 0 10px rgba(0,0,0,0.2);">
-          <h4>SMK Building</h4>
-          <p><strong>Data Source:</strong> OpenStreetMap Indoor Mapping<br/>
-             <strong>Note:</strong> Real room data from OSM contributors</p>
-        </div>`;
-      return div;
-    };
-    infoControl.addTo(osmMapInstance.map);
 
     // Add level control (updated for -1,0,1,2 levels)
 
@@ -509,6 +532,11 @@ onUnmounted(() => {
   transform: scale(0.95);
 }
 
+/* Info FAB - positioned on the left */
+.fab-button.fab-info {
+  right: 86px; /* Offset from the scanner FAB */
+}
+
 /* Active / open state */
 .fab-button.is-active {
   background-color: #dc3545;
@@ -517,6 +545,16 @@ onUnmounted(() => {
 
 .fab-button.is-active:hover {
   background-color: #c82333;
+}
+
+/* Info FAB active state - different color */
+.fab-button.fab-info.is-active {
+  background-color: #1a4d78;
+  box-shadow: 0 4px 12px rgba(26, 77, 120, 0.5);
+}
+
+.fab-button.fab-info.is-active:hover {
+  background-color: #153e61;
 }
 
 /* SVG icon sizing */
@@ -751,5 +789,69 @@ onUnmounted(() => {
 .fade-enter-from,
 .fade-leave-to {
   opacity: 0;
+}
+
+/* ===== Building Info Popup ===== */
+.building-info-popup {
+  position: absolute;
+  bottom: 90px;
+  left: 20px;
+  z-index: 1001;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+  max-width: 320px;
+  overflow: hidden;
+}
+
+.info-popup-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  background-color: #1a4d78;
+  color: white;
+}
+
+.info-popup-header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.info-popup-content {
+  padding: 18px;
+}
+
+.info-popup-content p {
+  margin: 8px 0;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.info-popup-content p:first-child {
+  margin-top: 0;
+}
+
+.info-popup-content p:last-child {
+  margin-bottom: 0;
+}
+
+/* Slide-up transition for building info popup */
+.slide-up-enter-active,
+.slide-up-leave-active {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.slide-up-enter-from,
+.slide-up-leave-to {
+  opacity: 0;
+  transform: translateY(20px);
+}
+
+.slide-up-enter-to,
+.slide-up-leave-from {
+  opacity: 1;
+  transform: translateY(0);
 }
 </style>
