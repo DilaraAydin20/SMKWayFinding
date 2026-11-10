@@ -110,6 +110,86 @@ fetchArtworksByRoom(smkRoomName) {
 
 ---
 
+## 3. Data Storage Architecture
+
+### The Problem
+Pinia stores data **in memory only** — everything is lost on page refresh or browser close. For a school project requiring a backend, we need to decide what lives where.
+
+### Options Compared
+
+| Approach | Persistence | Capacity | Best For |
+|----------|-------------|----------|----------|
+| **Pinia** (current) | Lost on refresh | In-memory only | Reactive UI state (loading flags, selections) |
+| **localStorage** | Survives refresh | ~5-10 MB | Small datasets: mappings, history, preferences |
+| **IndexedDB** | Survives refresh | 50MB+ (with quota) | Full SMK catalog cache (~50MB) |
+| **MySQL backend** | Permanent | Unlimited | School project requirement + user data + mappings |
+
+### Recommended Architecture
+
+```
+Frontend (Vue + Pinia)
+    ├── Reactive UI state: currentLocation, isLoading, selectedArtwork
+    ├── Local cache (IndexedDB or static JSON): full SMK catalog (~50MB)
+    └── Backend calls (MySQL):
+            ├── GET /api/rooms              → room list with names
+            ├── GET /api/artworks?room=205   → artworks in a room (query MySQL mapping)
+            ├── POST /api/visit              → log user visit
+            └── GET /api/user/:id/history    → user's visited rooms
+```
+
+### Minimal MySQL Schema
+
+```sql
+CREATE TABLE rooms (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    name VARCHAR(100),          -- "Sal 205"
+    osm_id BIGINT,              -- links to OSM way ID
+    level INT
+);
+
+CREATE TABLE artworks (
+    smk_id VARCHAR(20) PRIMARY KEY,  -- "KMS1"
+    title VARCHAR(500),
+    creator VARCHAR(200),
+    image_url TEXT,
+    current_location_name VARCHAR(100)
+);
+
+CREATE TABLE artwork_room_mapping (
+    artwork_smk_id VARCHAR(20),
+    room_id INT,
+    PRIMARY KEY (artwork_smk_id, room_id),
+    FOREIGN KEY (artwork_smk_id) REFERENCES artworks(smk_id),
+    FOREIGN KEY (room_id) REFERENCES rooms(id)
+);
+
+CREATE TABLE user_visits (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    user_id INT,
+    room_name VARCHAR(100),
+    visited_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+### What Goes Where
+
+| Data | Location | Reason |
+|------|----------|--------|
+| Reactive UI state (isLoading, selectedArtwork) | Pinia | Fast, reactive, no persistence needed |
+| Full SMK artwork catalog | IndexedDB or static JSON in `public/` | Too large for MySQL, rarely changes |
+| Room ↔ artwork mapping | MySQL | Business logic data — the bridge between OSM and SMK |
+| User visit history | MySQL | Personalized data tied to user accounts |
+| QR code assignments (artwork ↔ room) | MySQL | Admin-managed mappings |
+
+### Summary
+
+- **Pinia alone is NOT enough** — data is lost on refresh. Use it only for reactive UI state.
+- **localStorage** works for small datasets (mappings, history, preferences) but has a ~5-10MB limit.
+- **IndexedDB** is the right choice for caching the full SMK catalog (~50MB).
+- **MySQL backend** satisfies the school project requirement and handles what needs persistence: room-artwork mappings, user data, visit logs.
+
+---
+
 ## Priority Summary
 
 | Priority | Feature | Effort | Impact |
