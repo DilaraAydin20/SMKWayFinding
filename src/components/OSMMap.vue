@@ -113,6 +113,7 @@ Rendering: Uses Leaflet.js to render actual OSM way coordinates as polygons on t
 const cameraIconPath = 'M3 7V5a2 2 0 012-2h2m10 0h2a2 2 0 012 2v2m0 10v2a2 2 0 01-2 2h-2M7 21H5a2 2 0 01-2-2v-2'
 const xIconPath = 'M6.25 6.3a.75.75 0 011.06 0L12 10.94l4.69-4.68a.75.75 0 011.06 1.06L13.06 12l4.69 4.69a.75.75 0 01-1.06 1.06L12 13.06l-4.69 4.69a.75.75 0 01-1.06-1.06L10.94 12 6.25 7.31a.75.75 0 010-1.06z'
 import { ref, onMounted, computed, onUnmounted } from 'vue'
+import QRScanner from './QRScanner.vue'
 import { useMuseumwayfinding } from '../stores/museumwayfinding.js'
 
 // Store reference
