@@ -257,39 +257,232 @@ onUnmounted(stopScanning)
 
 <style scoped>
 
+/* ===== Mobile-First Layout ===== */
+.qr-scanner {
+  padding: 0;
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
 
-/* -- Layout -- */
-.qr-scanner      { padding: 16px; max-width: 100%; }
-h2               { margin-top: 0; font-size: 18px; color: #1a4d78; }
-.scanner-controls { text-align: center; padding: 30px; }
-.scanning-area   { display: flex; flex-direction: column; align-items: center; width: 100%; gap: 12px; }
+h2 {
+  margin: 0 0 16px 0;
+  font-size: 18px;
+  color: #1a4d78;
+}
 
-/* -- Status Badge -- */
-.status-badge { font-size: 14px; padding: 6px 12px; border-radius: 999px; font-weight: 500; }
-.status-loading { background-color: #fff3cd; color: #856404; }
-.status-error   { background-color: #f8d7da; color: #721c24; }
-.status-success { background-color: #d4edda; color: #155724; }
+.scanner-controls {
+  text-align: center;
+  padding: 24px 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
 
-/* -- Camera Preview -- */
-.scanner-video { width: 100%; max-width: 360px; border-radius: 8px; object-fit: cover; background-color: #000; }
+.scanner-controls p {
+  font-size: 15px;
+  line-height: 1.5;
+  color: #666;
+  margin: 0;
+}
 
-/* -- Controls & Feedback -- */
-.scanning-controls { display: flex; align-items: center; gap: 12px; }
-.scan-error, .scan-result { width: 100%; text-align: left; padding: 12px; border-radius: 8px; font-size: 14px; margin-top: 8px; }
-.scan-error   { background-color: #fff3f3; color: #dc3545; display: flex; align-items: center; gap: 8px; }
-.scan-result  { background-color: #e9f7ef; color: #1a4d78; }
-.scan-result h3   { margin-top: 0; font-size: 16px; color: #28a745; }
-.scan-result pre  { background: #f8f9fa; padding: 10px; border-radius: 4px; word-break: break-all; font-family: monospace; margin-top: 8px; }
+.scanning-area {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: 100%;
+  gap: 12px;
+}
 
-.library-loading { text-align: center; color: #6c757d; font-size: 13px; padding: 8px 0; }
-.scan-result .success { color: #28a745; font-weight: 600; margin-bottom: 0; }
+/* ===== Mobile-First Status Badge ===== */
+.status-badge {
+  font-size: 14px;
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-weight: 500;
+  text-align: center;
+  width: fit-content;
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+}
 
-/* -- Buttons (scoped to this component only) -- */
-.btn          { padding: 10px 20px; cursor: pointer; border: none; border-radius: 4px; font-size: 16px; transition: opacity 0.2s, background-color 0.2s; }
-.btn:hover:not(:disabled) { opacity: 0.9; }
-.btn-primary   { background-color: #28a745; color: white; }
-.btn-secondary { background-color: #dc3545; color: white; }
+.status-loading {
+  background-color: #fff3cd;
+  color: #856404;
+}
 
-/* -- Responsive tweaks (narrow panels on mobile) -- */
-@media (max-width: 400px) { .scanner-video { max-width: 100%; border-radius: 6px; } }
+.status-error {
+  background-color: #f8d7da;
+  color: #721c24;
+}
+
+.status-success {
+  background-color: #d4edda;
+  color: #155724;
+}
+
+/* ===== Mobile-First Camera Preview ===== */
+.scanner-video {
+  width: 100%;
+  max-width: 100%;
+  border-radius: 12px;
+  object-fit: cover;
+  background-color: #000;
+  aspect-ratio: 4/3;
+  /* Prevents iOS zoom */
+  touch-action: none;
+}
+
+/* ===== Mobile-First Controls & Feedback ===== */
+.scanning-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 8px 0;
+}
+
+.scanning-controls .btn {
+  min-width: 120px;
+}
+
+.scan-error,
+.scan-result {
+  width: 100%;
+  text-align: left;
+  padding: 16px;
+  border-radius: 12px;
+  font-size: 15px;
+  margin-top: 8px;
+  line-height: 1.5;
+}
+
+.scan-error {
+  background-color: #fff3f3;
+  color: #dc3545;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.scan-result {
+  background-color: #e9f7ef;
+  color: #1a4d78;
+}
+
+.scan-result h3 {
+  margin: 0 0 12px 0;
+  font-size: 18px;
+  color: #28a745;
+}
+
+.scan-result pre {
+  background: #f8f9fa;
+  padding: 12px;
+  border-radius: 8px;
+  word-break: break-all;
+  font-family: monospace;
+  margin-top: 12px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.library-loading {
+  text-align: center;
+  color: #6c757d;
+  font-size: 14px;
+  padding: 12px 0;
+}
+
+.scan-result .success {
+  color: #28a745;
+  font-weight: 600;
+  margin-bottom: 0;
+}
+
+/* ===== Mobile-First Buttons ===== */
+.btn {
+  padding: 12px 24px;
+  cursor: pointer;
+  border: none;
+  border-radius: 8px;
+  font-size: 16px;
+  transition: opacity 0.2s, background-color 0.2s;
+  min-height: 48px;
+  /* Touch-friendly */
+  -webkit-tap-highlight-color: transparent;
+  font-weight: 500;
+}
+
+.btn:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.btn:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.btn-primary {
+  background-color: #28a745;
+  color: white;
+}
+
+.btn-secondary {
+  background-color: #dc3545;
+  color: white;
+}
+
+/* ===== Small Mobile Optimization ===== */
+@media (max-width: 400px) {
+  .scanner-controls {
+    padding: 20px 12px;
+  }
+
+  .status-badge {
+    font-size: 13px;
+    padding: 6px 12px;
+  }
+
+  .scan-error,
+  .scan-result {
+    padding: 12px;
+    font-size: 14px;
+  }
+
+  .scanning-controls {
+    flex-direction: column;
+  }
+
+  .scanning-controls .btn {
+    width: 100%;
+  }
+}
+
+/* ===== Tablet and Up ===== */
+@media (min-width: 768px) {
+  .qr-scanner {
+    padding: 20px;
+  }
+
+  .scanner-controls {
+    padding: 40px;
+  }
+
+  .scanner-video {
+    max-width: 480px;
+    border-radius: 12px;
+  }
+
+  .scan-error,
+  .scan-result {
+    max-width: 480px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+}
 </style>
