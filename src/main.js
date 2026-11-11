@@ -5,6 +5,9 @@ import { createPinia } from 'pinia'
 import 'leaflet'
 import 'leaflet/dist/leaflet.css'
 
+// Import global mobile-first styles
+import './styles/mobile.css'
+
 // Import our components and stores
 import App from './App.vue'
 
