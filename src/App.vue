@@ -1,7 +1,8 @@
-<script setup>
+<script>
 import OSMMap from './components/OSMMap.vue'
 import VisitedRooms from './components/VisitedRooms.vue'
 import { useMuseumwayfinding } from './stores/museumwayfinding.js'
+import { getArtworks } from './data/smk-api.js'
 
 const store = useMuseumwayfinding()
 </script>

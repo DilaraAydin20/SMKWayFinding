@@ -1,5 +1,6 @@
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
+import { getArtworks } from './data/smk-api.js'
 
 // Import Leaflet
 import 'leaflet'
