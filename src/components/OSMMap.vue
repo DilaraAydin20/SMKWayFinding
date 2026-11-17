@@ -40,6 +40,14 @@ Rendering: Uses Leaflet.js to render actual OSM way coordinates as polygons on t
         <button type="submit" class="btn btn-primary" :disabled="!isMapLoaded">
           Search
         </button>
+        <button
+          v-if="searchedRoom"
+          type="button"
+          class="btn btn-secondary"
+          @click="clearRoomHighlight"
+        >
+          Clear Highlight
+        </button>
       </form>
     </div>
     <p v-if="roomSearchMessage" class="room-search-message" role="status">
@@ -179,10 +187,10 @@ const roomSearchMessage = ref('')
 const searchedRoom = ref(null)
 const nonInteractiveRoomIds = new Set(['1528606839', '1528606840', '1580154249'])
 const levelOptions = [
-  { value: '0', label: 'Basement (0)' },
-  { value: '1', label: 'Ground (1)' },
-  { value: '2', label: '1st Floor (2)' },
-  { value: '3', label: '2nd Floor (3)' }
+  { value: '0', label: 'Basement' },
+  { value: '1', label: 'Ground' },
+  { value: '2', label: '1st Floor' },
+  { value: '3', label: '2nd Floor' }
 ]
 let osmMapInstance = null
 const isMapLoaded = ref(false)
@@ -287,6 +295,10 @@ function getWayStyle(way) {
       return { color: '#666666', fillColor: '#999999', fillOpacity: 0.1, weight: 1 }
     case 'door':
       return { color: '#ff6600', fillColor: '#ff9933', fillOpacity: 0.5, weight: 2 }
+    case 'steps':
+      return { color: '#6f42c1', weight: 4, opacity: 0.9 }
+    case 'elevator':
+      return { color: '#20a4a8', fillColor: '#20a4a8', fillOpacity: 0.9, weight: 3 }
     default:
       return { color: '#888888', fillColor: '#aaaaaa', fillOpacity: 0.1, weight: 1 }
   }
@@ -300,7 +312,9 @@ function createIndoorWayLayer(way) {
   }
   const layer = way.geometry === 'point'
     ? L.circleMarker(way.coordinates[0], { ...layerOptions, radius: 6 })
-    : L.polygon(way.coordinates, layerOptions)
+    : way.geometry === 'line'
+      ? L.polyline(way.coordinates, layerOptions)
+      : L.polygon(way.coordinates, layerOptions)
   layer
     .addTo(indoorLayerGroup)
     .bindPopup(`
@@ -324,6 +338,12 @@ function refreshPathfindingStyles() {
   indoorWaysRef.forEach(way => {
     if (way.layer) way.layer.setStyle(getWayStyle(way))
   })
+}
+
+function clearRoomHighlight() {
+  searchedRoom.value = null
+  roomSearchMessage.value = ''
+  refreshPathfindingStyles()
 }
 
 function searchRoom() {
@@ -434,7 +454,7 @@ async function fetchIndoorData() {
   const overpassQuery = `
     [out:json][timeout:25];
     
-    // Fetch indoor ways and door features, including doors mapped as nodes
+    // Fetch indoor features, stairs, and elevators, including point features
     (
       way["indoor"](
         55.6870,12.5760,
@@ -444,11 +464,39 @@ async function fetchIndoorData() {
         55.6870,12.5760,
         55.6900,12.5800
       );
+      way["highway"~"^(steps|elevator)$"](
+        55.6870,12.5760,
+        55.6900,12.5800
+      );
+      way["indoor"~"^(stairs|steps|elevator)$"](
+        55.6870,12.5760,
+        55.6900,12.5800
+      );
+      way["elevator"](
+        55.6870,12.5760,
+        55.6900,12.5800
+      );
       node["door"](
         55.6870,12.5760,
         55.6900,12.5800
       );
       node["indoor"="door"](
+        55.6870,12.5760,
+        55.6900,12.5800
+      );
+      node["highway"="elevator"](
+        55.6870,12.5760,
+        55.6900,12.5800
+      );
+      node["highway"="steps"](
+        55.6870,12.5760,
+        55.6900,12.5800
+      );
+      node["indoor"~"^(stairs|steps|elevator)$"](
+        55.6870,12.5760,
+        55.6900,12.5800
+      );
+      node["elevator"](
         55.6870,12.5760,
         55.6900,12.5800
       );
@@ -498,9 +546,10 @@ function processOSMData(osmData) {
   // Process indoor ways and door nodes
   const indoorWaysFound = []
   osmData.elements.forEach(element => {
+    const featureType = getFeatureType(element.tags || {})
     if (
       element.type === 'node' &&
-      (element.tags?.door || element.tags?.indoor === 'door') &&
+      ['door', 'steps', 'elevator'].includes(featureType) &&
       element.lat !== undefined
     ) {
       indoorWaysFound.push({
@@ -508,11 +557,11 @@ function processOSMData(osmData) {
         geometry: 'point',
         coordinates: [[element.lat, element.lon]],
         level: parseInt(element.tags.level || '0'),
-        name: element.tags.name || `Door ${element.id}`,
-        type: 'door',
+        name: getFeatureName(element.tags, featureType, element.id),
+        type: featureType,
         otherTags: { ...element.tags }
       })
-    } else if (element.type === 'way' && (element.tags?.indoor || element.tags?.door)) {
+    } else if (element.type === 'way' && featureType) {
       const wayNodes = element.nodes || []
       
       // Convert node IDs to actual coordinates using our cache
@@ -525,8 +574,7 @@ function processOSMData(osmData) {
         return null
       }).filter(coord => coord !== null)  // Remove any missing nodes
 
-      const isDoor = element.tags.indoor === 'door' || Boolean(element.tags.door)
-      if (isDoor && coords.length > 0) {
+      if ((featureType === 'door' || featureType === 'elevator') && coords.length > 0) {
         const center = coords.reduce(
           ([lat, lon], [nextLat, nextLon]) => [lat + nextLat / coords.length, lon + nextLon / coords.length],
           [0, 0]
@@ -536,8 +584,18 @@ function processOSMData(osmData) {
           geometry: 'point',
           coordinates: [center],
           level: parseInt(element.tags.level || '0'),
-          name: element.tags.name || `Door ${element.id}`,
-          type: 'door',
+          name: getFeatureName(element.tags, featureType, element.id),
+          type: featureType,
+          otherTags: { ...element.tags }
+        })
+      } else if (featureType === 'steps' && coords.length >= 2) {
+        indoorWaysFound.push({
+          id: element.id,
+          geometry: 'line',
+          coordinates: coords,
+          level: parseInt(element.tags.level || '0'),
+          name: getFeatureName(element.tags, featureType, element.id),
+          type: featureType,
           otherTags: { ...element.tags }
         })
       } else if (coords.length >= 3) {
@@ -566,6 +624,34 @@ function processOSMData(osmData) {
   renderIndoorFeatures()
 }
 
+function getFeatureType(tags) {
+  if (tags.door || tags.indoor === 'door') return 'door'
+  if (tags.highway === 'steps' || tags.indoor === 'steps' || tags.indoor === 'stairs') return 'steps'
+  if (
+    tags.highway === 'elevator' ||
+    tags.indoor === 'elevator' ||
+    (!tags.indoor && tags.elevator && tags.elevator !== 'no')
+  ) return 'elevator'
+  return tags.indoor || null
+}
+
+function getFeatureName(tags, type, id) {
+  if (tags.name) return tags.name
+  if (tags.ref) return tags.ref
+  if (type === 'room' || type === 'area') return 'Unnamed Room'
+  if (type === 'steps') return 'Steps'
+  if (type === 'elevator') return 'Elevator'
+  return `Door ${id}`
+}
+
+function isFeatureOnLevel(feature, level) {
+  const featureLevels = String(feature.otherTags?.level || feature.level || 0)
+    .split(';')
+    .map(value => parseInt(value.trim(), 10))
+    .filter(Number.isFinite)
+  return featureLevels.includes(parseInt(level, 10))
+}
+
 function renderIndoorFeatures() {
   if (!osmMapInstance || !indoorWaysRef.length) return;
 
@@ -573,7 +659,7 @@ function renderIndoorFeatures() {
 
   // Create a layer group to hold all indoor features
   indoorLayerGroup = L.layerGroup()
-  const visibleWays = indoorWaysRef.filter(way => way.level === parseInt(currentLevel.value))
+  const visibleWays = indoorWaysRef.filter(way => isFeatureOnLevel(way, currentLevel.value))
 
   visibleWays.forEach(createIndoorWayLayer)
 
@@ -592,7 +678,7 @@ function updateBuildingDisplayForLevel(level) {
 
   indoorLayerGroup.clearLayers()
 
-  const filteredWays = indoorWaysRef.filter(way => way.level === parseInt(level))
+  const filteredWays = indoorWaysRef.filter(way => isFeatureOnLevel(way, level))
 
   console.log(`Showing ${filteredWays.length} features for level: ${level}`)
 
