@@ -1,13 +1,16 @@
 <script>
-import { getArtworks, offset } from '../data/smk-api';
+import { getArtworks, rows } from '../data/smk-api.js';
 
 export default {
     name: 'Artwork Catalogue',
     components: {
     },
     data() {
-            return {
-            
+        return {
+            offset: 0,
+            isLoading: false,
+            hasMore: true,
+            loadError: ''
         }
     },
     props: {
@@ -17,20 +20,45 @@ export default {
 
     },
     methods: {
+        async loadMore() {
+            // If loading is active or there is no more art to list => return
+            if (this.isLoading || !this.hasMore) return; 
+
+            this.isLoading = true; // Loading is active
+            this.loadError = ''; // Reset any previous errors
+
+            try {
+                const loadedCount = await getArtworks(this.offset);
+                this.offset += loadedCount; // offset = offset + loaded (20)
+                this.hasMore = loadedCount === rows; // hasMore is true, if loadedCount = 20 (rows)
+            } catch (err) {
+                console.error('Could not load more artworks:', err);
+                this.loadError = 'Could not load more artworks, please try again.';
+            } finally {
+                this.isLoading = false;
+            }
+        }
     },
     watch: {
         
     },
-    emits: [
-    ],
+    emits: [],
+    mounted() {
+        this.loadMore();
+    }
 }
 </script>
 
 <template>
     <section class = "banner"></section>
+    
     <section id = "artwork">
         
     </section>
+    <p v-if="loadError" role="alert">{{ loadError }}</p>
+    <button @click="loadMore" :disabled="isLoading || !hasMore">
+        {{ isLoading ? 'Loading...' : hasMore ? 'Load more' : 'Everything is loaded' }}
+    </button>
 
 
 </template>

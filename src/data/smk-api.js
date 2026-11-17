@@ -2,8 +2,7 @@ import noImage from '../images/noimage.png'
 
 const apiUrl = 'https://api.smk.dk/api/v1/art/search/';
 
-export let offset = 0; // Gathering artworks from offset (index)
-const rows = 20; // Amount of rows being searched at once
+export const rows = 20;
 
 const artworksInfo = {
     title:[],
@@ -20,12 +19,17 @@ const artworksInfo = {
 
 
 
-export async function getArtworks(){
+export async function getArtworks(offset = 0) {
     try {
         const response = await fetch(
-            `${apiUrl}?keys=*&offset${offset}&rows=${rows}`
+            `${apiUrl}?keys=*&offset=${offset}&rows=${rows}`
         );
+        if (!response.ok) {
+            throw new Error(`SMK API request failed with status ${response.status}`);
+        }
+
         const data = await response.json();
+        const newItemsStartIndex = artworksInfo.title.length;
 
         data.items.forEach(artwork => { 
             // Gather all needed data from API
@@ -49,22 +53,23 @@ export async function getArtworks(){
             artworksInfo.image.orientation.push(orientation);
             console.log(data);
         })
-        renderArtwork();
+        renderArtwork(newItemsStartIndex);
+        return data.items.length;
 
     } catch(err){
         console.error('Error while retreiving artworks :', err);
+        throw err;
     }
 }
 
-getArtworks();
-
-
-function renderArtwork(){
+function renderArtwork(startIndex) {
     // Container for artworks (parent)
     const artworkList = document.getElementById('artwork');
-    
-    
-    for (let i = 0; i < artworksInfo.title.length; i++){
+    if (!artworkList) {
+        throw new Error('Artwork list element was not found');
+    }
+
+    for (let i = startIndex; i < artworksInfo.title.length; i++){
         /* Create necessary elements for all cards */
         const card = document.createElement('div');
         const cardTitle = document.createElement('h3');
