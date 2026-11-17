@@ -28,7 +28,23 @@ Rendering: Uses Leaflet.js to render actual OSM way coordinates as polygons on t
       >
         Reset Route
       </button>
+      <form class="room-search-form" role="search" @submit.prevent="searchRoom">
+        <input
+          v-model="roomSearchQuery"
+          class="room-search-input"
+          type="search"
+          aria-label="Search room name or reference"
+          placeholder="Search room name or ref"
+          :disabled="!isMapLoaded"
+        />
+        <button type="submit" class="btn btn-primary" :disabled="!isMapLoaded">
+          Search
+        </button>
+      </form>
     </div>
+    <p v-if="roomSearchMessage" class="room-search-message" role="status">
+      {{ roomSearchMessage }}
+    </p>
 
     <!-- Loading State Overlay -->
     <Transition name="fade">
@@ -158,6 +174,9 @@ const currentLevel = ref('1')
 const pathfindingStep = ref('idle')
 const selectedStartRoom = ref(null)
 const selectedDestinationRoom = ref(null)
+const roomSearchQuery = ref('')
+const roomSearchMessage = ref('')
+const searchedRoom = ref(null)
 const nonInteractiveRoomIds = new Set(['1528606839', '1528606840', '1580154249'])
 const levelOptions = [
   { value: '0', label: 'Basement (0)' },
@@ -251,6 +270,9 @@ function isPathfindingRoom(way) {
 }
 
 function getWayStyle(way) {
+  if (searchedRoom.value?.id === way.id) {
+    return { color: '#d39e00', fillColor: '#ffc107', fillOpacity: 0.65, weight: 4 }
+  }
   if (selectedDestinationRoom.value?.id === way.id) {
     return { color: '#c82333', fillColor: '#dc3545', fillOpacity: 0.55, weight: 4 }
   }
@@ -283,8 +305,7 @@ function createIndoorWayLayer(way) {
     .addTo(indoorLayerGroup)
     .bindPopup(`
       <b>${way.name}</b><br/>
-      Type: ${way.type}<br/>
-      Level: ${way.level}
+      Type: ${way.type}
     `)
 
   layer.on('mouseover', function() {
@@ -302,6 +323,38 @@ function createIndoorWayLayer(way) {
 function refreshPathfindingStyles() {
   indoorWaysRef.forEach(way => {
     if (way.layer) way.layer.setStyle(getWayStyle(way))
+  })
+}
+
+function searchRoom() {
+  const query = roomSearchQuery.value.trim().toLocaleLowerCase()
+  if (!query) {
+    roomSearchMessage.value = 'Enter a room name or ref.'
+    return
+  }
+
+  const rooms = indoorWaysRef.filter(way => way.type === 'room')
+  const getSearchValues = room => [room.otherTags?.name, room.otherTags?.ref]
+    .filter(Boolean)
+    .map(value => String(value).trim().toLocaleLowerCase())
+  const exactMatch = rooms.find(room => getSearchValues(room).includes(query))
+  const matchedRoom = exactMatch || rooms.find(room =>
+    getSearchValues(room).some(value => value.includes(query))
+  )
+
+  if (!matchedRoom) {
+    searchedRoom.value = null
+    roomSearchMessage.value = `No room found for "${roomSearchQuery.value.trim()}".`
+    refreshPathfindingStyles()
+    return
+  }
+
+  searchedRoom.value = matchedRoom
+  roomSearchMessage.value = `Found ${matchedRoom.name} on floor ${matchedRoom.level}.`
+  selectLevel(String(matchedRoom.level))
+  osmMapInstance.map.fitBounds(L.latLngBounds(matchedRoom.coordinates), {
+    padding: [50, 50],
+    maxZoom: 21
   })
 }
 
@@ -658,6 +711,7 @@ onUnmounted(() => {
 
 .map-controls {
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-start;
   align-items: center;
   gap: 10px;
@@ -665,6 +719,25 @@ onUnmounted(() => {
   padding: 10px;
   background-color: #f5f5f5;
   border-radius: 5px;
+}
+
+.room-search-form {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.room-search-input {
+  width: 220px;
+  max-width: 100%;
+  padding: 8px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.room-search-message {
+  margin: 0 10px 10px;
 }
 
 .route-prompt {
