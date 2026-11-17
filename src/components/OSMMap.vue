@@ -166,7 +166,7 @@ const errorMessage = ref(null)
 const drawerOpen = ref(false)
 
 // OSM Data storage (not reactive, used in callbacks)
-let indoorWaysRef = [] // Array of { id, coordinates: [[lat,lon]], level, name }
+let indoorWaysRef = [] // Indoor features with geometry, level, and name
 let nodeCache = {}     // Cache for node lookups by ID
 let indoorLayerGroup = null // Reference to the Leaflet layer group
 
@@ -264,7 +264,10 @@ function getWayStyle(way) {
 
 function createIndoorWayLayer(way) {
   const style = getWayStyle(way)
-  const polygon = L.polygon(way.coordinates, style)
+  const layer = way.geometry === 'point'
+    ? L.circleMarker(way.coordinates[0], { ...style, radius: 6 })
+    : L.polygon(way.coordinates, style)
+  layer
     .addTo(indoorLayerGroup)
     .bindPopup(`
       <b>${way.name}</b><br/>
@@ -272,16 +275,16 @@ function createIndoorWayLayer(way) {
       Level: ${way.level}
     `)
 
-  polygon.on('mouseover', function() {
+  layer.on('mouseover', function() {
     if (!isPathfindingRoom(way)) {
       this.setStyle({ fillOpacity: 0.3, weight: 3 })
     }
   })
-  polygon.on('mouseout', function() {
+  layer.on('mouseout', function() {
     this.setStyle(getWayStyle(way))
   })
-  polygon.on('click', () => selectRoomForPathfinding(way))
-  way.layer = polygon
+  layer.on('click', () => selectRoomForPathfinding(way))
+  way.layer = layer
 }
 
 function refreshPathfindingStyles() {
@@ -366,10 +369,21 @@ async function fetchIndoorData() {
   const overpassQuery = `
     [out:json][timeout:25];
     
-    // Find the building relation or way for SMK
+    // Fetch indoor ways and door features, including doors mapped as nodes
     (
-      // Query all indoor=room, indoor=corridor, indoor=door features around SMK
       way["indoor"](
+        55.6870,12.5760,
+        55.6900,12.5800
+      );
+      way["door"](
+        55.6870,12.5760,
+        55.6900,12.5800
+      );
+      node["door"](
+        55.6870,12.5760,
+        55.6900,12.5800
+      );
+      node["indoor"="door"](
         55.6870,12.5760,
         55.6900,12.5800
       );
@@ -416,10 +430,24 @@ function processOSMData(osmData) {
     }
   })
 
-  // Process ways with indoor tags
+  // Process indoor ways and door nodes
   const indoorWaysFound = []
   osmData.elements.forEach(element => {
-    if (element.type === 'way' && element.tags?.indoor) {
+    if (
+      element.type === 'node' &&
+      (element.tags?.door || element.tags?.indoor === 'door') &&
+      element.lat !== undefined
+    ) {
+      indoorWaysFound.push({
+        id: element.id,
+        geometry: 'point',
+        coordinates: [[element.lat, element.lon]],
+        level: parseInt(element.tags.level || '0'),
+        name: element.tags.name || `Door ${element.id}`,
+        type: 'door',
+        otherTags: { ...element.tags }
+      })
+    } else if (element.type === 'way' && (element.tags?.indoor || element.tags?.door)) {
       const wayNodes = element.nodes || []
       
       // Convert node IDs to actual coordinates using our cache
@@ -432,9 +460,25 @@ function processOSMData(osmData) {
         return null
       }).filter(coord => coord !== null)  // Remove any missing nodes
 
-      if (coords.length >= 3) {  // Need at least 3 points for a polygon
+      const isDoor = element.tags.indoor === 'door' || Boolean(element.tags.door)
+      if (isDoor && coords.length > 0) {
+        const center = coords.reduce(
+          ([lat, lon], [nextLat, nextLon]) => [lat + nextLat / coords.length, lon + nextLon / coords.length],
+          [0, 0]
+        )
         indoorWaysFound.push({
           id: element.id,
+          geometry: 'point',
+          coordinates: [center],
+          level: parseInt(element.tags.level || '0'),
+          name: element.tags.name || `Door ${element.id}`,
+          type: 'door',
+          otherTags: { ...element.tags }
+        })
+      } else if (coords.length >= 3) {
+        indoorWaysFound.push({
+          id: element.id,
+          geometry: 'polygon',
           coordinates: coords,
           level: parseInt(element.tags.level || '0'),
           name: element.tags.name || `Room ${element.id}`,
@@ -442,7 +486,7 @@ function processOSMData(osmData) {
           otherTags: { ...element.tags }
         })
       } else {
-        console.warn(`Way ${element.id} has insufficient nodes (${coords.length}) for a polygon`)
+        console.warn(`Way ${element.id} has insufficient nodes (${coords.length}) for an indoor feature`)
       }
     }
   })
