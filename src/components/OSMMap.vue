@@ -14,6 +14,13 @@ Rendering: Uses Leaflet.js to render actual OSM way coordinates as polygons on t
     <!-- Map Controls -->
     <div class="map-controls">
       <button @click="resetView" :disabled="!isMapLoaded" class="btn btn-primary">Reset View</button>
+      <button
+        @click="startPathfinding"
+        :disabled="!isMapLoaded || pathfindingStep === 'origin' || pathfindingStep === 'destination'"
+        class="btn btn-primary"
+      >
+        {{ pathfindingStep === 'complete' ? 'Plan Another Route' : 'Plan Route' }}
+      </button>
     </div>
 
     <!-- Loading State Overlay -->
@@ -42,6 +49,18 @@ Rendering: Uses Leaflet.js to render actual OSM way coordinates as polygons on t
 
       <!-- Leaflet map container -->
       <div id="osm-map" :class="{ 'map-display': true, 'disabled': isLoading }"></div>
+
+      <div v-if="pathfindingStep !== 'idle'" class="route-prompt" role="status" aria-live="polite">
+        <p>{{ pathfindingPrompt }}</p>
+        <button
+          v-if="pathfindingStep === 'origin' || pathfindingStep === 'destination'"
+          type="button"
+          class="route-prompt-button"
+          @click="cancelPathfinding"
+        >
+          Cancel
+        </button>
+      </div>
 
       <div class="level-buttons" role="group" aria-label="Select floor" :aria-disabled="!isMapLoaded">
         <button
@@ -129,6 +148,9 @@ const store = useMuseumwayfinding()
 
 // Local state using Vue refs for reactivity
 const currentLevel = ref('1')
+const pathfindingStep = ref('idle')
+const selectedStartRoom = ref(null)
+const selectedDestinationRoom = ref(null)
 const levelOptions = [
   { value: '0', label: 'Basement (0)' },
   { value: '1', label: 'Ground (1)' },
@@ -157,6 +179,15 @@ const wayfindingRoute = computed(() => {
   return store.wayfindingRoute
 })
 
+const pathfindingPrompt = computed(() => {
+  if (pathfindingStep.value === 'origin') return 'Select your current location'
+  if (pathfindingStep.value === 'destination') return 'Where would you like to go?'
+  if (pathfindingStep.value === 'complete') {
+    return `Route selected: ${selectedStartRoom.value.name} → ${selectedDestinationRoom.value.name}`
+  }
+  return ''
+})
+
 function toggleScanner() {
   drawerOpen.value = !drawerOpen.value
 }
@@ -175,6 +206,88 @@ function switchLevel() {
 function selectLevel(level) {
   currentLevel.value = level
   switchLevel()
+}
+
+function startPathfinding() {
+  selectedStartRoom.value = null
+  selectedDestinationRoom.value = null
+  pathfindingStep.value = 'origin'
+  refreshPathfindingStyles()
+}
+
+function cancelPathfinding() {
+  pathfindingStep.value = 'idle'
+  selectedStartRoom.value = null
+  selectedDestinationRoom.value = null
+  refreshPathfindingStyles()
+}
+
+function selectRoomForPathfinding(way) {
+  if (way.type !== 'room') return
+
+  if (pathfindingStep.value === 'origin') {
+    selectedStartRoom.value = way
+    pathfindingStep.value = 'destination'
+  } else if (pathfindingStep.value === 'destination') {
+    selectedDestinationRoom.value = way
+    pathfindingStep.value = 'complete'
+  } else {
+    return
+  }
+
+  refreshPathfindingStyles()
+}
+
+function isPathfindingRoom(way) {
+  return selectedStartRoom.value?.id === way.id || selectedDestinationRoom.value?.id === way.id
+}
+
+function getWayStyle(way) {
+  if (selectedDestinationRoom.value?.id === way.id) {
+    return { color: '#c82333', fillColor: '#dc3545', fillOpacity: 0.55, weight: 4 }
+  }
+  if (selectedStartRoom.value?.id === way.id) {
+    return { color: '#218838', fillColor: '#28a745', fillOpacity: 0.55, weight: 4 }
+  }
+
+  switch (way.type) {
+    case 'room':
+      return { color: '#3388ff', fillColor: '#3388ff', fillOpacity: 0.15, weight: 2 }
+    case 'corridor':
+      return { color: '#666666', fillColor: '#999999', fillOpacity: 0.1, weight: 1 }
+    case 'door':
+      return { color: '#ff6600', fillColor: '#ff9933', fillOpacity: 0.5, weight: 2 }
+    default:
+      return { color: '#888888', fillColor: '#aaaaaa', fillOpacity: 0.1, weight: 1 }
+  }
+}
+
+function createIndoorWayLayer(way) {
+  const style = getWayStyle(way)
+  const polygon = L.polygon(way.coordinates, style)
+    .addTo(indoorLayerGroup)
+    .bindPopup(`
+      <b>${way.name}</b><br/>
+      Type: ${way.type}<br/>
+      Level: ${way.level}
+    `)
+
+  polygon.on('mouseover', function() {
+    if (!isPathfindingRoom(way)) {
+      this.setStyle({ fillOpacity: 0.3, weight: 3 })
+    }
+  })
+  polygon.on('mouseout', function() {
+    this.setStyle(getWayStyle(way))
+  })
+  polygon.on('click', () => selectRoomForPathfinding(way))
+  way.layer = polygon
+}
+
+function refreshPathfindingStyles() {
+  indoorWaysRef.forEach(way => {
+    if (way.layer) way.layer.setStyle(getWayStyle(way))
+  })
 }
 
 function resetView() {
@@ -350,68 +463,7 @@ function renderIndoorFeatures() {
   indoorLayerGroup = L.layerGroup()
   const visibleWays = indoorWaysRef.filter(way => way.level === parseInt(currentLevel.value))
 
-  visibleWays.forEach((way) => {
-    let style = {}
-    
-    switch (way.type) {
-      case 'room':
-        style = {
-          color: '#3388ff',
-          fillColor: '#3388ff',
-          fillOpacity: 0.15,
-          weight: 2
-        }
-        break
-      case 'corridor':
-        style = {
-          color: '#666666',
-          fillColor: '#999999',
-          fillOpacity: 0.1,
-          weight: 1
-        }
-        break
-      case 'door':
-        // For doors, we might want to show them as points or small rectangles
-        style = {
-          color: '#ff6600',
-          fillColor: '#ff9933',
-          fillOpacity: 0.5,
-          weight: 2
-        }
-        break
-      default:
-        style = {
-          color: '#888888',
-          fillColor: '#aaaaaa',
-          fillOpacity: 0.1,
-          weight: 1
-        }
-    }
-
-    const polygon = L.polygon(way.coordinates, style)
-      .addTo(indoorLayerGroup)
-      .bindPopup(`
-        <b>${way.name}</b><br/>
-        Type: ${way.type}<br/>
-        Level: ${way.level}
-      `)
-
-    // Add hover effect for better interactivity
-    polygon.on('mouseover', function() {
-      this.setStyle({ fillOpacity: 0.3, weight: 3 })
-    })
-    
-    polygon.on('mouseout', function() {
-      if (way.type === 'room') {
-        this.setStyle({ fillOpacity: 0.15, weight: 2 })
-      } else {
-        this.setStyle(style)
-      }
-    })
-
-    // Store reference to layer for filtering by level later
-    way.layer = polygon
-  })
+  visibleWays.forEach(createIndoorWayLayer)
 
   // Add the indoor features layer group to the map
   indoorLayerGroup.addTo(map)
@@ -426,7 +478,6 @@ function renderIndoorFeatures() {
 function updateBuildingDisplayForLevel(level) {
   if (!osmMapInstance || !indoorLayerGroup) return;
 
-  const map = osmMapInstance.map
   indoorLayerGroup.clearLayers()
 
   const filteredWays = indoorWaysRef.filter(way => way.level === parseInt(level))
@@ -434,28 +485,7 @@ function updateBuildingDisplayForLevel(level) {
   console.log(`Showing ${filteredWays.length} features for level: ${level}`)
 
   // Re-render the filtered ways
-  filteredWays.forEach((way) => {
-    let style = {}
-    
-    switch (way.type) {
-      case 'room':
-        style = { color: '#3388ff', fillColor: '#3388ff', fillOpacity: 0.15, weight: 2 }
-        break
-      case 'corridor':
-        style = { color: '#666666', fillColor: '#999999', fillOpacity: 0.1, weight: 1 }
-        break
-      default:
-        style = way._originalStyle || { color: '#888888', fillColor: '#aaaaaa', fillOpacity: 0.1, weight: 1 }
-    }
-
-    const polygon = L.polygon(way.coordinates, style)
-      .addTo(indoorLayerGroup)
-      .bindPopup(`
-        <b>${way.name}</b><br/>
-        Type: ${way.type}<br/>
-        Level: ${way.level}
-      `)
-  })
+  filteredWays.forEach(createIndoorWayLayer)
 
 }
 
@@ -569,12 +599,43 @@ onUnmounted(() => {
 
 .map-controls {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-start;
   align-items: center;
+  gap: 10px;
   margin-bottom: 10px;
   padding: 10px;
   background-color: #f5f5f5;
   border-radius: 5px;
+}
+
+.route-prompt {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1001;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: calc(100% - 32px);
+  padding: 10px 14px;
+  border-radius: 6px;
+  background-color: white;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+}
+
+.route-prompt p {
+  margin: 0;
+  font-weight: 600;
+}
+
+.route-prompt-button {
+  padding: 5px 9px;
+  border: 1px solid #1a4d78;
+  border-radius: 4px;
+  background-color: white;
+  color: #1a4d78;
+  cursor: pointer;
 }
 
 .map-display {
