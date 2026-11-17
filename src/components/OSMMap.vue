@@ -14,13 +14,6 @@ Rendering: Uses Leaflet.js to render actual OSM way coordinates as polygons on t
     <!-- Map Controls -->
     <div class="map-controls">
       <button @click="resetView" :disabled="!isMapLoaded" class="btn btn-primary">Reset View</button>
-      <select v-model="currentLevel" @change="switchLevel" :disabled="!isMapLoaded">
-        <option value="all">All Levels</option>
-        <option value="-1">Basement (B1)</option>
-        <option value="0">Ground Floor (G)</option>
-        <option value="1">First Floor</option>
-        <option value="2">Second Floor</option>
-      </select>
     </div>
 
     <!-- Loading State Overlay -->
@@ -49,6 +42,21 @@ Rendering: Uses Leaflet.js to render actual OSM way coordinates as polygons on t
 
       <!-- Leaflet map container -->
       <div id="osm-map" :class="{ 'map-display': true, 'disabled': isLoading }"></div>
+
+      <div class="level-buttons" role="group" aria-label="Select floor" :aria-disabled="!isMapLoaded">
+        <button
+          v-for="option in levelOptions"
+          :key="option.value"
+          type="button"
+          class="level-button"
+          :class="{ 'is-selected': currentLevel === option.value }"
+          :aria-pressed="currentLevel === option.value"
+          :disabled="!isMapLoaded"
+          @click="selectLevel(option.value)"
+        >
+          {{ option.label }}
+        </button>
+      </div>
 
       <!-- Scanner Drawer Overlay � single Transition handles enter/leave phases declaratively -->
       <Transition name="drawer">
@@ -120,7 +128,13 @@ import { useMuseumwayfinding } from '../stores/museumwayfinding.js'
 const store = useMuseumwayfinding()
 
 // Local state using Vue refs for reactivity
-const currentLevel = ref('all')
+const currentLevel = ref('1')
+const levelOptions = [
+  { value: '0', label: 'Basement (0)' },
+  { value: '1', label: 'Ground (1)' },
+  { value: '2', label: '1st Floor (2)' },
+  { value: '3', label: '2nd Floor (3)' }
+]
 let osmMapInstance = null
 const isMapLoaded = ref(false)
 const isLoading = ref(true)
@@ -156,6 +170,11 @@ function switchLevel() {
   if (!osmMapInstance) return;
   console.log('Switching to level:', currentLevel.value)
   updateBuildingDisplayForLevel(currentLevel.value)
+}
+
+function selectLevel(level) {
+  currentLevel.value = level
+  switchLevel()
 }
 
 function resetView() {
@@ -212,7 +231,7 @@ async function loadOSMData() {
     };
     infoControl.addTo(osmMapInstance.map);
 
-    // Add level control (updated for -1,0,1,2 levels)
+    // Floor buttons are displayed over the map.
 
     // Query Overpass API for indoor mapping data around SMK
     await fetchIndoorData()
@@ -318,11 +337,6 @@ function processOSMData(osmData) {
   indoorWaysRef = indoorWaysFound
   console.log(`Processed ${indoorWaysFound.length} indoor ways from OSM data`)
 
-  // Add entrance marker at the reference coordinate (Node 13947795305) - this is where your node points
-  L.marker([55.6887, 12.5783])
-    .addTo(osmMapInstance.map)
-    .bindPopup('<b>Building Entrance</b><br>SMK Main Entry Point (OSM Node: 13947795305)')
-
   // Render the indoor features on the map
   renderIndoorFeatures()
 }
@@ -334,8 +348,9 @@ function renderIndoorFeatures() {
 
   // Create a layer group to hold all indoor features
   indoorLayerGroup = L.layerGroup()
+  const visibleWays = indoorWaysRef.filter(way => way.level === parseInt(currentLevel.value))
 
-  indoorWaysRef.forEach((way, index) => {
+  visibleWays.forEach((way) => {
     let style = {}
     
     switch (way.type) {
@@ -402,8 +417,8 @@ function renderIndoorFeatures() {
   indoorLayerGroup.addTo(map)
 
   // Fit bounds to show all indoor features if we have any
-  if (indoorWaysRef.length > 0) {
-    const bounds = L.latLngBounds(indoorWaysRef.flatMap(way => way.coordinates))
+  if (visibleWays.length > 0) {
+    const bounds = L.latLngBounds(visibleWays.flatMap(way => way.coordinates))
     osmMapInstance.map.fitBounds(bounds, { padding: [50, 50] })
   }
 }
@@ -414,10 +429,7 @@ function updateBuildingDisplayForLevel(level) {
   const map = osmMapInstance.map
   indoorLayerGroup.clearLayers()
 
-  // Filter ways by selected level (or show all if 'all' is selected)
-  const filteredWays = level === 'all'
-    ? indoorWaysRef
-    : indoorWaysRef.filter(way => way.level === parseInt(level))
+  const filteredWays = indoorWaysRef.filter(way => way.level === parseInt(level))
 
   console.log(`Showing ${filteredWays.length} features for level: ${level}`)
 
@@ -445,12 +457,6 @@ function updateBuildingDisplayForLevel(level) {
       `)
   })
 
-  // Add entrance marker if showing all levels or ground floor
-  if (level === 'all' || level === '0') {
-    L.marker([55.6887, 12.5783])
-      .addTo(indoorLayerGroup)
-      .bindPopup('<b>Building Entrance</b><br>SMK Main Entry Point (OSM Node: 13947795305)')
-  }
 }
 
 // Cleanup when component is unmounted
@@ -477,6 +483,43 @@ onUnmounted(() => {
   position: relative; /* Context for FAB absolute positioning */
   border-radius: 5px;
   overflow: hidden;
+}
+
+.level-buttons {
+  position: absolute;
+  left: 12px;
+  right: 88px;
+  bottom: 14px;
+  z-index: 1000;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 6px;
+  border-radius: 6px;
+  background-color: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+
+.level-button {
+  padding: 7px 10px;
+  border: 1px solid #1a4d78;
+  border-radius: 4px;
+  background-color: white;
+  color: #1a4d78;
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.level-button:hover:not(:disabled),
+.level-button.is-selected {
+  background-color: #1a4d78;
+  color: white;
+}
+
+.level-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
 }
 
 /* ===== FAB Button (Floating Action Button) ===== */
@@ -612,12 +655,6 @@ onUnmounted(() => {
 .btn-secondary {
   background-color: #dc3545;
   color: white;
-}
-
-.level-control select {
-  padding: 5px;
-  border-radius: 3px;
-  border: 1px solid #ccc;
 }
 
 .building-info {
