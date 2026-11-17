@@ -21,6 +21,13 @@ Rendering: Uses Leaflet.js to render actual OSM way coordinates as polygons on t
       >
         {{ pathfindingStep === 'complete' ? 'Plan Another Route' : 'Plan Route' }}
       </button>
+      <button
+        v-if="selectedStartRoom || selectedDestinationRoom"
+        @click="cancelPathfinding"
+        class="btn btn-secondary"
+      >
+        Reset Route
+      </button>
     </div>
 
     <!-- Loading State Overlay -->
@@ -151,6 +158,7 @@ const currentLevel = ref('1')
 const pathfindingStep = ref('idle')
 const selectedStartRoom = ref(null)
 const selectedDestinationRoom = ref(null)
+const nonInteractiveRoomIds = new Set(['1528606839', '1528606840', '1580154249'])
 const levelOptions = [
   { value: '0', label: 'Basement (0)' },
   { value: '1', label: 'Ground (1)' },
@@ -264,9 +272,13 @@ function getWayStyle(way) {
 
 function createIndoorWayLayer(way) {
   const style = getWayStyle(way)
+  const layerOptions = {
+    ...style,
+    interactive: !nonInteractiveRoomIds.has(String(way.id))
+  }
   const layer = way.geometry === 'point'
-    ? L.circleMarker(way.coordinates[0], { ...style, radius: 6 })
-    : L.polygon(way.coordinates, style)
+    ? L.circleMarker(way.coordinates[0], { ...layerOptions, radius: 6 })
+    : L.polygon(way.coordinates, layerOptions)
   layer
     .addTo(indoorLayerGroup)
     .bindPopup(`
@@ -476,12 +488,15 @@ function processOSMData(osmData) {
           otherTags: { ...element.tags }
         })
       } else if (coords.length >= 3) {
+        const isRoomOrArea = element.tags.indoor === 'room' || element.tags.indoor === 'area'
         indoorWaysFound.push({
           id: element.id,
           geometry: 'polygon',
           coordinates: coords,
           level: parseInt(element.tags.level || '0'),
-          name: element.tags.name || `Room ${element.id}`,
+          name: element.tags.name || (
+            isRoomOrArea ? element.tags.ref || 'Unnamed Room' : `${element.tags.indoor} ${element.id}`
+          ),
           type: element.tags.indoor,  // room, corridor, door
           otherTags: { ...element.tags }
         })
