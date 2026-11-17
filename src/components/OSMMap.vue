@@ -173,6 +173,8 @@ const xIconPath = 'M6.25 6.3a.75.75 0 011.06 0L12 10.94l4.69-4.68a.75.75 0 011.0
 import { ref, onMounted, computed, onUnmounted } from 'vue'
 import QRScanner from './QRScanner.vue'
 import { useMuseumwayfinding } from '../stores/museumwayfinding.js'
+import stairsIconUrl from '../assets/icons/stairs.svg'
+import elevatorIconUrl from '../assets/icons/elevator.svg'
 
 // Store reference
 const store = useMuseumwayfinding()
@@ -295,10 +297,6 @@ function getWayStyle(way) {
       return { color: '#666666', fillColor: '#999999', fillOpacity: 0.1, weight: 1 }
     case 'door':
       return { color: '#ff6600', fillColor: '#ff9933', fillOpacity: 0.5, weight: 2 }
-    case 'steps':
-      return { color: '#6f42c1', weight: 4, opacity: 0.9 }
-    case 'elevator':
-      return { color: '#20a4a8', fillColor: '#20a4a8', fillOpacity: 0.9, weight: 3 }
     default:
       return { color: '#888888', fillColor: '#aaaaaa', fillOpacity: 0.1, weight: 1 }
   }
@@ -310,11 +308,38 @@ function createIndoorWayLayer(way) {
     ...style,
     interactive: !nonInteractiveRoomIds.has(String(way.id))
   }
-  const layer = way.geometry === 'point'
-    ? L.circleMarker(way.coordinates[0], { ...layerOptions, radius: 6 })
-    : way.geometry === 'line'
-      ? L.polyline(way.coordinates, layerOptions)
-      : L.polygon(way.coordinates, layerOptions)
+  let layer
+
+  if (way.type === 'steps' || way.type === 'elevator') {
+    const position = way.geometry === 'point'
+      ? way.coordinates[0]
+      : way.coordinates.reduce(
+        ([lat, lon], [nextLat, nextLon]) => [lat + nextLat / way.coordinates.length, lon + nextLon / way.coordinates.length],
+        [0, 0]
+      )
+    const iconUrl = way.type === 'steps' ? stairsIconUrl : elevatorIconUrl
+    const featureLabel = way.type === 'steps' ? 'Stairs' : 'Elevator'
+
+    layer = L.marker(position, {
+      interactive: layerOptions.interactive,
+      title: way.name,
+      alt: featureLabel,
+      icon: L.divIcon({
+        className: `leaflet-div-icon indoor-facility-marker indoor-facility-marker--${way.type}`,
+        html: `<img src="${iconUrl}" alt="" />`,
+        iconSize: [36, 36],
+        iconAnchor: [18, 18],
+        popupAnchor: [0, -18]
+      })
+    })
+  } else {
+    layer = way.geometry === 'point'
+      ? L.circleMarker(way.coordinates[0], { ...layerOptions, radius: 6 })
+      : way.geometry === 'line'
+        ? L.polyline(way.coordinates, layerOptions)
+        : L.polygon(way.coordinates, layerOptions)
+  }
+
   layer
     .addTo(indoorLayerGroup)
     .bindPopup(`
@@ -322,21 +347,25 @@ function createIndoorWayLayer(way) {
       Type: ${way.type}
     `)
 
-  layer.on('mouseover', function() {
-    if (!isPathfindingRoom(way)) {
-      this.setStyle({ fillOpacity: 0.3, weight: 3 })
-    }
-  })
-  layer.on('mouseout', function() {
-    this.setStyle(getWayStyle(way))
-  })
+  if (typeof layer.setStyle === 'function') {
+    layer.on('mouseover', function() {
+      if (!isPathfindingRoom(way)) {
+        this.setStyle({ fillOpacity: 0.3, weight: 3 })
+      }
+    })
+    layer.on('mouseout', function() {
+      this.setStyle(getWayStyle(way))
+    })
+  }
   layer.on('click', () => selectRoomForPathfinding(way))
   way.layer = layer
 }
 
 function refreshPathfindingStyles() {
   indoorWaysRef.forEach(way => {
-    if (way.layer) way.layer.setStyle(getWayStyle(way))
+    if (way.layer && typeof way.layer.setStyle === 'function') {
+      way.layer.setStyle(getWayStyle(way))
+    }
   })
 }
 
@@ -824,6 +853,31 @@ onUnmounted(() => {
 
 .room-search-message {
   margin: 0 10px 10px;
+}
+
+:deep(.indoor-facility-marker) {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid;
+  border-radius: 50%;
+  background-color: white;
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.45);
+}
+
+:deep(.indoor-facility-marker img) {
+  display: block;
+  width: 24px;
+  height: 24px;
+}
+
+:deep(.indoor-facility-marker--steps) {
+  border-color: #6f42c1;
+}
+
+:deep(.indoor-facility-marker--elevator) {
+  border-color: #20a4a8;
 }
 
 .route-prompt {
