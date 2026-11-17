@@ -1,9 +1,8 @@
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
-import { getArtworks } from './data/smk-api.js'
 
 // Import Leaflet
-import 'leaflet'
+import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 
 // Import global mobile-first styles
