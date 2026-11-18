@@ -1,5 +1,6 @@
 <script setup>
 import OSMMap from './components/OSMMap.vue'
+import ArtworkAudioGuide from './components/ArtworkAudioGuide.vue'
 import { useMuseumwayfinding } from './stores/museumwayfinding.js'
 
 const store = useMuseumwayfinding()
@@ -30,6 +31,8 @@ const store = useMuseumwayfinding()
           </ul>
           <p v-else>No rooms visited yet</p>
         </div>
+
+        <ArtworkAudioGuide :artwork="store.selectedArtwork" />
       </div>
     </main>
   </div>
