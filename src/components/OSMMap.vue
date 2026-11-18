@@ -184,6 +184,7 @@ const currentLevel = ref('1')
 const pathfindingStep = ref('idle')
 const selectedStartRoom = ref(null)
 const selectedDestinationRoom = ref(null)
+const routeWarning = ref('')
 const roomSearchQuery = ref('')
 const roomSearchMessage = ref('')
 const searchedRoom = ref(null)
@@ -206,6 +207,8 @@ const drawerOpen = ref(false)
 let indoorWaysRef = [] // Indoor features with geometry, level, and name
 let nodeCache = {}     // Cache for node lookups by ID
 let indoorLayerGroup = null // Reference to the Leaflet layer group
+let pathfindingRouteLayer = null
+let plannedRouteSegments = []
 
 // Computed properties
 const currentRoomName = computed(() => {
@@ -220,7 +223,8 @@ const pathfindingPrompt = computed(() => {
   if (pathfindingStep.value === 'origin') return 'Select your current location'
   if (pathfindingStep.value === 'destination') return 'Where would you like to go?'
   if (pathfindingStep.value === 'complete') {
-    return `Route selected: ${selectedStartRoom.value.name} → ${selectedDestinationRoom.value.name}`
+    const routeSummary = `Route selected: ${selectedStartRoom.value.name} → ${selectedDestinationRoom.value.name}`
+    return routeWarning.value ? `${routeSummary}. ${routeWarning.value}` : routeSummary
   }
   return ''
 })
@@ -238,6 +242,7 @@ function switchLevel() {
   if (!osmMapInstance) return;
   console.log('Switching to level:', currentLevel.value)
   updateBuildingDisplayForLevel(currentLevel.value)
+  renderPathfindingRoute()
 }
 
 function selectLevel(level) {
@@ -249,6 +254,7 @@ function startPathfinding() {
   selectedStartRoom.value = null
   selectedDestinationRoom.value = null
   pathfindingStep.value = 'origin'
+  clearPathfindingRoute()
   refreshPathfindingStyles()
 }
 
@@ -256,6 +262,7 @@ function cancelPathfinding() {
   pathfindingStep.value = 'idle'
   selectedStartRoom.value = null
   selectedDestinationRoom.value = null
+  clearPathfindingRoute()
   refreshPathfindingStyles()
 }
 
@@ -273,6 +280,9 @@ function selectRoomForPathfinding(way) {
   }
 
   refreshPathfindingStyles()
+  if (pathfindingStep.value === 'complete') {
+    createPathfindingRoute()
+  }
 }
 
 function isPathfindingRoom(way) {
@@ -367,6 +377,223 @@ function refreshPathfindingStyles() {
       way.layer.setStyle(getWayStyle(way))
     }
   })
+}
+
+function getFeaturePosition(feature) {
+  if (feature.geometry === 'point') return feature.coordinates[0]
+
+  return feature.coordinates.reduce(
+    ([lat, lon], [nextLat, nextLon]) => [
+      lat + nextLat / feature.coordinates.length,
+      lon + nextLon / feature.coordinates.length
+    ],
+    [0, 0]
+  )
+}
+
+function getDistance(firstPosition, secondPosition) {
+  return L.latLng(firstPosition[0], firstPosition[1])
+    .distanceTo(L.latLng(secondPosition[0], secondPosition[1]))
+}
+
+function findNearestFeature(features, position) {
+  return features.reduce((nearest, feature) => {
+    const distance = getDistance(position, getFeaturePosition(feature))
+    return !nearest || distance < nearest.distance ? { feature, distance } : nearest
+  }, null)?.feature || null
+}
+
+function findNearestDoor(level, position) {
+  const doors = indoorWaysRef.filter(way => way.type === 'door' && isFeatureOnLevel(way, level))
+  return findNearestFeature(doors, position)
+}
+
+function getLevelsBetween(startLevel, destinationLevel) {
+  const direction = destinationLevel > startLevel ? 1 : -1
+  const levels = []
+
+  for (let level = startLevel; ; level += direction) {
+    levels.push(level)
+    if (level === destinationLevel) return levels
+  }
+}
+
+function findConnectorChain(levels, originPosition) {
+  const connectorsOnStartingLevel = indoorWaysRef.filter(
+    way => ['steps', 'elevator'].includes(way.type) && isFeatureOnLevel(way, levels[0])
+  )
+  const startingConnector = findNearestFeature(connectorsOnStartingLevel, originPosition)
+  if (!startingConnector) return null
+
+  const chain = [{
+    feature: startingConnector,
+    level: levels[0],
+    position: getFeaturePosition(startingConnector),
+    type: startingConnector.type
+  }]
+
+  for (const level of levels.slice(1)) {
+    const previousConnector = chain[chain.length - 1]
+    const connectors = indoorWaysRef.filter(
+      way => ['steps', 'elevator'].includes(way.type) && isFeatureOnLevel(way, level)
+    )
+    const matchingTypeConnectors = connectors.filter(way => way.type === previousConnector.type)
+    const connectorCandidates = matchingTypeConnectors.length ? matchingTypeConnectors : connectors
+    const connector = findNearestFeature(connectorCandidates, previousConnector.position)
+
+    if (!matchingTypeConnectors.length && connectors.length) {
+      addRouteWarning('The same stair or elevator is not mapped on every floor; using the nearest connector.')
+    } else if (!connector) {
+      addRouteWarning('A floor has no mapped stairs or elevator; continuing at the nearest mapped connector position.')
+    }
+
+    chain.push(connector
+      ? {
+          feature: connector,
+          level,
+          position: getFeaturePosition(connector),
+          type: connector.type
+        }
+      : {
+          feature: null,
+          level,
+          position: previousConnector.position,
+          type: previousConnector.type
+        })
+  }
+
+  return chain
+}
+
+function addRouteWarning(message) {
+  routeWarning.value = [routeWarning.value, message].filter(Boolean).join(' ')
+}
+
+function addPathfindingSegment(level, points) {
+  const coordinates = points.filter(Boolean).filter((point, index, allPoints) =>
+    index === 0 || getDistance(allPoints[index - 1], point) > 0.25
+  )
+  if (coordinates.length > 1) {
+    plannedRouteSegments.push({ level, coordinates })
+  }
+}
+
+function clearPathfindingRoute() {
+  plannedRouteSegments = []
+  routeWarning.value = ''
+  if (pathfindingRouteLayer) pathfindingRouteLayer.clearLayers()
+}
+
+function renderPathfindingRoute() {
+  if (!pathfindingRouteLayer || !osmMapInstance) return
+
+  pathfindingRouteLayer.clearLayers()
+  const visibleSegments = plannedRouteSegments.filter(
+    segment => segment.level === parseInt(currentLevel.value, 10)
+  )
+
+  visibleSegments.forEach(segment => {
+    L.polyline(segment.coordinates, {
+      color: '#ffffff',
+      weight: 9,
+      opacity: 0.95,
+      interactive: false
+    }).addTo(pathfindingRouteLayer)
+
+    L.polyline(segment.coordinates, {
+      className: 'planned-route-line',
+      color: '#0759e8',
+      weight: 5,
+      opacity: 1,
+      lineCap: 'round',
+      lineJoin: 'round',
+      interactive: false
+    }).addTo(pathfindingRouteLayer).bringToFront()
+  })
+
+  if (visibleSegments.length) {
+    const routePoints = visibleSegments.flatMap(segment => segment.coordinates)
+    osmMapInstance.map.fitBounds(L.latLngBounds(routePoints), {
+      padding: [50, 50],
+      maxZoom: 21
+    })
+  }
+}
+
+function createPathfindingRoute() {
+  const startRoom = selectedStartRoom.value
+  const destinationRoom = selectedDestinationRoom.value
+  if (!startRoom || !destinationRoom) return
+
+  clearPathfindingRoute()
+  addRouteWarning('Route is estimated using nearby mapped doors and connectors.')
+  const startLevel = startRoom.level
+  const destinationLevel = destinationRoom.level
+  const startPosition = getFeaturePosition(startRoom)
+  const destinationPosition = getFeaturePosition(destinationRoom)
+  const startDoor = findNearestDoor(startLevel, startPosition)
+  const destinationDoor = findNearestDoor(destinationLevel, destinationPosition)
+
+  if (!startDoor || !destinationDoor) {
+    addRouteWarning('Some room doors are not mapped; using direct links where needed.')
+  }
+
+  if (startLevel === destinationLevel) {
+    addPathfindingSegment(startLevel, [
+      startPosition,
+      startDoor && getFeaturePosition(startDoor),
+      destinationDoor && getFeaturePosition(destinationDoor),
+      destinationPosition
+    ])
+  } else {
+    const levels = getLevelsBetween(startLevel, destinationLevel)
+    const originAnchor = startDoor ? getFeaturePosition(startDoor) : startPosition
+    const connectorChain = findConnectorChain(levels, originAnchor)
+
+    if (!connectorChain) {
+      addPathfindingSegment(startLevel, [
+        startPosition,
+        startDoor && getFeaturePosition(startDoor)
+      ])
+      addPathfindingSegment(destinationLevel, [
+        destinationDoor && getFeaturePosition(destinationDoor),
+        destinationPosition
+      ])
+      addRouteWarning('No stairs or elevators are mapped on the starting floor, so the floor change cannot be routed.')
+    } else {
+      connectorChain.forEach((connector, index) => {
+        const previousConnector = connectorChain[index - 1]
+        const nextConnector = connectorChain[index + 1]
+        const connectorDoor = findNearestDoor(connector.level, connector.position)
+
+        if (index === 0) {
+          addPathfindingSegment(connector.level, [
+            startPosition,
+            startDoor && getFeaturePosition(startDoor),
+            connectorDoor && getFeaturePosition(connectorDoor),
+            connector.position
+          ])
+        } else if (index === connectorChain.length - 1) {
+          addPathfindingSegment(connector.level, [
+            connector.position,
+            connectorDoor && getFeaturePosition(connectorDoor),
+            destinationDoor && getFeaturePosition(destinationDoor),
+            destinationPosition
+          ])
+        } else {
+          const nextConnectorDoor = findNearestDoor(connector.level, nextConnector.position)
+          addPathfindingSegment(connector.level, [
+            previousConnector.position,
+            connectorDoor && getFeaturePosition(connectorDoor),
+            nextConnectorDoor && getFeaturePosition(nextConnectorDoor),
+            nextConnector.position
+          ])
+        }
+      })
+    }
+  }
+
+  selectLevel(String(startLevel))
 }
 
 function clearRoomHighlight() {
@@ -465,6 +692,7 @@ async function loadOSMData() {
 
     // Query Overpass API for indoor mapping data around SMK
     await fetchIndoorData()
+    pathfindingRouteLayer = L.layerGroup().addTo(osmMapInstance.map)
     
     isMapLoaded.value = true
   }
@@ -673,12 +901,15 @@ function getFeatureName(tags, type, id) {
   return `Door ${id}`
 }
 
-function isFeatureOnLevel(feature, level) {
-  const featureLevels = String(feature.otherTags?.level || feature.level || 0)
+function getFeatureLevels(feature) {
+  return String(feature.otherTags?.level || feature.level || 0)
     .split(';')
     .map(value => parseInt(value.trim(), 10))
     .filter(Number.isFinite)
-  return featureLevels.includes(parseInt(level, 10))
+}
+
+function isFeatureOnLevel(feature, level) {
+  return getFeatureLevels(feature).includes(parseInt(level, 10))
 }
 
 function renderIndoorFeatures() {
@@ -713,6 +944,11 @@ function updateBuildingDisplayForLevel(level) {
 
   // Re-render the filtered ways
   filteredWays.forEach(createIndoorWayLayer)
+
+  if (filteredWays.length > 0) {
+    const bounds = L.latLngBounds(filteredWays.flatMap(way => way.coordinates))
+    osmMapInstance.map.fitBounds(bounds, { padding: [50, 50] })
+  }
 
 }
 
