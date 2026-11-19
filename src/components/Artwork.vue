@@ -168,6 +168,42 @@ export default {
     font-weight: 700;
   }
 
+  #artwork :deep(.cardDisplay) {
+    align-self: flex-start;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    width: fit-content;
+    margin: 0 0 12px;
+    padding: 6px 10px;
+    border: 1px solid #d8dee4;
+    border-radius: 999px;
+    background: #f3f5f6;
+    color: #525c66;
+    font-size: 0.78rem;
+    font-weight: 700;
+    line-height: 1;
+  }
+
+  #artwork :deep(.cardDisplay::before) {
+    width: 7px;
+    height: 7px;
+    flex: 0 0 7px;
+    border-radius: 50%;
+    background: currentColor;
+    content: "";
+  }
+
+  #artwork :deep(.cardDisplay--on-display) {
+    border-color: #c9e6d1;
+    background: #edf7f0;
+    color: #287044;
+  }
+
+  #artwork :deep(.cardDisplay:empty) {
+    display: none;
+  }
+
   #artwork :deep(.cardBtn) {
     order: 2;
     display: inline-flex;
