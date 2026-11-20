@@ -63,6 +63,20 @@ Rendering: Uses Leaflet.js to render actual OSM way coordinates as polygons on t
 
     <!-- Map Display (wrapper for FAB positioning) -->
     <div class="map-wrapper">
+      <!-- Info FAB (bottom-left of map area) -->
+      <button
+        @click="toggleBuildingInfo"
+        class="fab-button fab-info"
+        :class="{ 'is-active': showBuildingInfo }"
+        title="Building Information"
+      >
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="12" y1="16" x2="12" y2="12"></line>
+          <line x1="12" y1="8" x2="12.01" y2="8"></line>
+        </svg>
+      </button>
+
       <!-- Scanner Toggle FAB (bottom-right of map area) -->
       <button
         @click="toggleScanner"
@@ -77,6 +91,22 @@ Rendering: Uses Leaflet.js to render actual OSM way coordinates as polygons on t
           <path :d="xIconPath"/>
         </svg>
       </button>
+
+      <!-- Building Info Popup -->
+      <Transition name="slide-up">
+        <div v-if="showBuildingInfo" class="building-info-popup">
+          <div class="info-popup-header">
+            <h3>Building Information</h3>
+            <button @click="showBuildingInfo = false" class="btn-close" aria-label="Close info">&times;</button>
+          </div>
+          <div class="info-popup-content">
+            <p><strong>Museum:</strong> SMK - Statens Museum for Kunst</p>
+            <p><strong>Location:</strong> Copenhagen, Denmark</p>
+            <p><strong>Data Source:</strong> OpenStreetMap Indoor Mapping</p>
+            <p><strong>Note:</strong> Real room data from OSM contributors shows actual room polygons, corridors, and doors mapped by the community.</p>
+          </div>
+        </div>
+      </Transition>
 
       <!-- Leaflet map container -->
       <div id="osm-map" :class="{ 'map-display': true, 'disabled': isLoading }"></div>
@@ -203,6 +233,9 @@ const errorMessage = ref(null)
 // Drawer � single boolean, no animation-phase tracking needed
 const drawerOpen = ref(false)
 
+// Building info popup visibility
+const showBuildingInfo = ref(false)
+
 // OSM Data storage (not reactive, used in callbacks)
 let indoorWaysRef = [] // Indoor features with geometry, level, and name
 let nodeCache = {}     // Cache for node lookups by ID
@@ -235,6 +268,10 @@ function toggleScanner() {
 
 function closeDrawer() {
   drawerOpen.value = false
+}
+
+function toggleBuildingInfo() {
+  showBuildingInfo.value = !showBuildingInfo.value
 }
 
 // Methods
@@ -965,7 +1002,7 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-/* ===== Map Container & Containment ===== */
+/* ===== Mobile-First Map Container & Containment ===== */
 .osm-map-container {
   position: relative;
   width: 100%;
@@ -973,10 +1010,13 @@ onUnmounted(() => {
 }
 
 .map-wrapper {
-  position: relative; /* Context for FAB absolute positioning */
-  border-radius: 5px;
+  position: relative;
+  border-radius: 0;
   overflow: hidden;
+  z-index: 10; /* Ensure FABs are above map tiles */
+  height: calc(100vh - 240px); /* Account for header, controls, and wayfinding panel */
 }
+
 
 .level-buttons {
   position: absolute;
@@ -1016,11 +1056,12 @@ onUnmounted(() => {
 }
 
 /* ===== FAB Button (Floating Action Button) ===== */
+
 .fab-button {
   position: absolute;
-  bottom: 20px;
-  right: 20px;
-  z-index: 1000; /* Above map tiles but below drawer overlay */
+  bottom: 16px;
+  right: 16px;
+  z-index: 1000;
   width: 56px;
   height: 56px;
   border-radius: 50%;
@@ -1033,6 +1074,8 @@ onUnmounted(() => {
   justify-content: center;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
   transition: transform 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease;
+  /* Touch-friendly */
+  -webkit-tap-highlight-color: transparent;
 }
 
 .fab-button:hover {
@@ -1045,6 +1088,11 @@ onUnmounted(() => {
   transform: scale(0.95);
 }
 
+/* Info FAB - positioned on the left */
+.fab-button.fab-info {
+  right: 82px;
+}
+
 /* Active / open state */
 .fab-button.is-active {
   background-color: #dc3545;
@@ -1055,11 +1103,22 @@ onUnmounted(() => {
   background-color: #c82333;
 }
 
+/* Info FAB active state - different color */
+.fab-button.fab-info.is-active {
+  background-color: #1a4d78;
+  box-shadow: 0 4px 12px rgba(26, 77, 120, 0.5);
+}
+
+.fab-button.fab-info.is-active:hover {
+  background-color: #153e61;
+}
+
 /* SVG icon sizing */
 .fab-button svg {
   pointer-events: none;
 }
 
+/* ===== Mobile-First Map Controls ===== */
 .map-controls {
   display: flex;
   flex-wrap: wrap;
@@ -1069,7 +1128,17 @@ onUnmounted(() => {
   margin-bottom: 10px;
   padding: 10px;
   background-color: #f5f5f5;
-  border-radius: 5px;
+  border-radius: 0;
+  /* Touch-friendly controls */
+}
+
+.map-controls .btn,
+.map-controls select {
+  min-height: 44px;
+  min-width: 44px;
+  padding: 10px 16px;
+  font-size: 16px; /* Prevents zoom on iOS */
+  border-radius: 8px;
 }
 
 .room-search-form {
@@ -1148,10 +1217,15 @@ onUnmounted(() => {
 
 .map-display {
   width: 100%;
-  height: calc(80vh - 120px);
-  border: 1px solid #ccc;
-  border-radius: 5px;
-  overflow: hidden; /* Critical: clips Leaflet's draggable tile layer */
+  height: 100%;
+  border: none;
+  border-radius: 0;
+  overflow: hidden;
+}
+
+/* Ensure Leaflet map tiles don't cover FABs */
+.map-display .leaflet-container {
+  z-index: 1;
 }
 
 .map-display.disabled {
@@ -1159,57 +1233,95 @@ onUnmounted(() => {
   pointer-events: none;
 }
 
-.loading-overlay {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  background-color: rgba(255, 255, 255, 0.9);
-  padding: 20px;
-  border-radius: 5px;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-  z-index: 5; /* Above tiles (z=4), below FAB (z=1000) */
-}
-
+/* Loading and error overlays - mobile optimized */
+.loading-overlay,
 .error-message {
   position: absolute;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  background-color: rgba(255, 240, 240, 0.95);
-  padding: 20px;
-  border-radius: 5px;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-  text-align: center;
+  background-color: rgba(255, 255, 255, 0.95);
+  padding: 24px;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.2);
   z-index: 1000;
+  max-width: calc(100vw - 48px);
+  min-width: 280px;
+  text-align: center;
+}
+
+.loading-overlay p,
+.error-message p {
+  margin: 0 0 16px 0;
+  font-size: 16px;
+  line-height: 1.5;
 }
 
 .error-message p {
   color: #721c24;
-  margin-bottom: 15px;
 }
 
+.error-message .btn {
+  min-height: 44px;
+  padding: 12px 24px;
+  font-size: 16px;
+}
+
+/* ===== Mobile-First Wayfinding Panel ===== */
 .wayfinding-panel {
-  margin-top: 20px;
-  padding: 15px;
+  margin: 0;
+  padding: 16px;
   background-color: #f9f9f9;
-  border-radius: 5px;
-  border: 1px solid #ddd;
+  border-radius: 0;
+  border-top: 1px solid #ddd;
+}
+
+.wayfinding-panel h3 {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1a4d78;
+  margin-bottom: 12px;
+}
+
+.wayfinding-panel p {
+  font-size: 15px;
+  line-height: 1.5;
+  margin: 8px 0;
 }
 
 .route-info {
-  margin-top: 10px;
-  padding: 10px;
+  margin-top: 12px;
+  padding: 12px;
   background-color: #e9f7fe;
-  border-radius: 5px;
+  border-radius: 8px;
 }
 
-.btn {
-  padding: 8px 16px;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
+.route-info h4 {
+  margin: 0 0 8px 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.route-info ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.route-info li {
+  padding: 6px 0;
   font-size: 14px;
+}
+
+/* ===== Mobile-First Buttons ===== */
+.btn {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 16px;
+  min-height: 44px;
+  /* Touch-friendly */
+  -webkit-tap-highlight-color: transparent;
 }
 
 .btn:hover:not(:disabled) {
@@ -1226,6 +1338,7 @@ onUnmounted(() => {
   color: white;
 }
 
+
 .building-info {
   font-size: small;
 }
@@ -1233,6 +1346,7 @@ onUnmounted(() => {
 /* ===== Drawer Transition Hooks (Vue-managed) ===== */
 
 /* Overlay � fades in/out behind the panel. Teleported to body so it spans full viewport. */
+
 .drawer-enter-active,
 .drawer-leave-active {
   transition: opacity 0.3s ease;
@@ -1243,10 +1357,9 @@ onUnmounted(() => {
   opacity: 0;
 }
 
-/* Backdrop � fades in/out alongside the overlay wrapper */
 .scanner-drawer-overlay .drawer-backdrop,
 .scanner-drawer-overlay {
-  position: fixed; /* spans full viewport (Teleported to body) */
+  position: fixed;
   inset: 0;
   background-color: rgba(0, 0, 0, 0.5);
   z-index: 9998;
@@ -1262,67 +1375,52 @@ onUnmounted(() => {
   opacity: 0;
 }
 
-/* Panel � slides in from the right on enter, slides back out on leave */
+/* Panel - full screen on mobile, slide-in on desktop */
 .scanner-drawer-overlay .drawer-panel-inner {
-  position: fixed; /* spans full viewport (Teleported to body) */
+  position: fixed;
   top: 0;
   right: 0;
   bottom: 0;
-  width: 380px;
-  max-width: 90vw;
+  left: 0;
+  width: 100%;
   background-color: #fff;
-  box-shadow: -4px 0 20px rgba(0, 0, 0, 0.2);
+  box-shadow: none;
   display: flex;
   flex-direction: column;
-  z-index: 9999; /* Above map tiles (z=400+) and backdrop */
+  z-index: 9999;
 }
 
-.drawer-enter-active .drawer-panel-inner {
-  transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.35s ease;
-}
-
+.drawer-enter-active .drawer-panel-inner,
 .drawer-leave-active .drawer-panel-inner {
-  transition: transform 0.3s ease-in-out, opacity 0.3s ease;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* Initial state for enter (panel off-screen right) */
-.drawer-enter-from .drawer-panel-inner {
-  transform: translateX(100%);
-  opacity: 0;
-}
-
-/* Final state after enter completes � panel visible at right edge */
-.drawer-enter-to .drawer-panel-inner {
-  transform: translateX(0);
-  opacity: 1;
-}
-
-/* Initial state for leave (panel currently visible) */
-.drawer-leave-from .drawer-panel-inner {
-  transform: translateX(0);
-  opacity: 1;
-}
-
-/* Final state after leave completes � panel off-screen right */
+/* Mobile: slide up from bottom */
+.drawer-enter-from .drawer-panel-inner,
 .drawer-leave-to .drawer-panel-inner {
-  transform: translateX(100%);
-  opacity: 0;
+  transform: translateY(100%);
 }
 
-/* Drawer header & body styles (shared by both scoped and non-scoped contexts) */
+.drawer-enter-to .drawer-panel-inner,
+.drawer-leave-from .drawer-panel-inner {
+  transform: translateY(0);
+}
+
+/* Drawer header */
 .drawer-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 20px;
+  padding: 16px;
   background-color: #1a4d78;
   color: white;
   min-height: 56px;
+  flex-shrink: 0;
 }
 
 .drawer-header h3 {
   margin: 0;
-  font-size: 16px;
+  font-size: 18px;
   font-weight: 600;
 }
 
@@ -1330,12 +1428,17 @@ onUnmounted(() => {
   background: none;
   border: none;
   color: white;
-  font-size: 28px;
+  font-size: 32px;
   line-height: 1;
   cursor: pointer;
-  padding: 4px 8px;
+  padding: 8px;
   opacity: 0.7;
   transition: opacity 0.2s;
+  min-width: 44px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .btn-close:hover {
@@ -1346,9 +1449,50 @@ onUnmounted(() => {
   flex: 1;
   overflow-y: auto;
   padding: 16px;
+  min-height: 0;
 }
 
-/* ===== Fade Transition for loading overlay ===== */
+/* ===== Building Info Popup - Mobile Optimized ===== */
+.building-info-popup {
+  position: absolute;
+  bottom: 80px;
+  left: 16px;
+  right: 16px;
+  z-index: 1001;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+  max-width: calc(100vw - 32px);
+  overflow: hidden;
+}
+
+.info-popup-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px;
+  background-color: #1a4d78;
+  color: white;
+}
+
+.info-popup-header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  flex: 1;
+}
+
+.info-popup-content {
+  padding: 16px;
+}
+
+.info-popup-content p {
+  margin: 8px 0;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+/* ===== Fade Transition ===== */
 .fade-enter-active,
 .fade-leave-active {
   transition: opacity 0.3s ease;
@@ -1357,5 +1501,167 @@ onUnmounted(() => {
 .fade-enter-from,
 .fade-leave-to {
   opacity: 0;
+}
+
+/* ===== Slide-up Transition ===== */
+.slide-up-enter-active,
+.slide-up-leave-active {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.slide-up-enter-from,
+.slide-up-leave-to {
+  opacity: 0;
+  transform: translateY(20px);
+}
+
+.slide-up-enter-to,
+.slide-up-leave-from {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ===== Tablet and Up: Side-by-side Layout ===== */
+@media (min-width: 768px) {
+  .map-wrapper {
+    border-radius: 8px;
+  }
+
+  .map-controls {
+    border-radius: 8px;
+    margin-bottom: 12px;
+  }
+
+  .map-display {
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    height: calc(80vh - 120px);
+  }
+
+  .wayfinding-panel {
+    margin-top: 12px;
+    border-radius: 8px;
+    border: 1px solid #ddd;
+  }
+
+  /* Desktop drawer: slide from right */
+  .scanner-drawer-overlay .drawer-panel-inner {
+    width: 400px;
+    max-width: 90vw;
+    left: auto;
+    right: 0;
+    box-shadow: -4px 0 20px rgba(0, 0, 0, 0.2);
+  }
+
+  .drawer-enter-active .drawer-panel-inner,
+  .drawer-leave-active .drawer-panel-inner {
+    transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .drawer-enter-from .drawer-panel-inner {
+    transform: translateX(100%);
+  }
+
+  .drawer-leave-to .drawer-panel-inner {
+    transform: translateX(100%);
+  }
+
+  .drawer-enter-to .drawer-panel-inner,
+  .drawer-leave-from .drawer-panel-inner {
+    transform: translateX(0);
+  }
+
+  /* Building info popup - fixed width on desktop */
+  .building-info-popup {
+    right: auto;
+    max-width: 340px;
+    bottom: 90px;
+    left: 20px;
+  }
+
+  /* Larger FABs on desktop */
+  .fab-button {
+    width: 56px;
+    height: 56px;
+  }
+
+  .fab-button.fab-info {
+    right: 86px;
+  }
+}
+
+/* ===== Desktop: Larger Screens ===== */
+@media (min-width: 1024px) {
+  .map-controls {
+    padding: 12px 16px;
+  }
+
+  .wayfinding-panel {
+    padding: 20px;
+  }
+
+  .building-info-popup {
+    max-width: 360px;
+  }
+}
+
+/* ===== Small Mobile Optimization ===== */
+@media (max-width: 360px) {
+  .map-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .map-controls .btn,
+  .map-controls select {
+    width: 100%;
+  }
+
+  .fab-button {
+    width: 50px;
+    height: 50px;
+    bottom: 12px;
+    right: 12px;
+  }
+
+  .fab-button.fab-info {
+    right: 72px;
+  }
+
+  .building-info-popup {
+    left: 12px;
+    right: 12px;
+    bottom: 70px;
+  }
+}
+
+/* ===== Small Mobile Optimization ===== */
+@media (max-width: 360px) {
+  .map-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .map-controls .btn,
+  .map-controls select {
+    width: 100%;
+  }
+
+  .fab-button {
+    width: 50px;
+    height: 50px;
+    bottom: 12px;
+    right: 12px;
+  }
+
+  .fab-button.fab-info {
+    right: 72px;
+  }
+
+  .building-info-popup {
+    left: 12px;
+    right: 12px;
+    bottom: 70px;
+  }
 }
 </style>
