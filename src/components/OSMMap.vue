@@ -697,6 +697,11 @@ async function loadOSMData() {
     // Initialize the map container with SMK coordinates from OSM node reference
     const center = [55.6887, 12.5783] // Based on real OSM Node: 13947795305 (the building entrance)
     
+     // Remove existing map before initializing a new one
+if (osmMapInstance?.map) {
+  osmMapInstance.map.remove()
+  osmMapInstance = null
+}
     osmMapInstance = {
       map: L.map('osm-map', {
         center: center,

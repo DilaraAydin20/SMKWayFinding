@@ -18,10 +18,13 @@ src/
   App.vue                        # Root layout (header, map area, sidebar)
   main.js                        # Vue app entry point
   components/
+    ArtworkAudioGuide.vue       # Multilingual artwork description playback
     OSMMap.vue                 # Interactive floor plan with Overpass API integration
     QRScanner.vue              # Camera-based QR code scanner for location/artwork detection
   stores/
     museumwayfinding.js        # Pinia store (current location, wayfinding route, history)
+backend/
+  server.js                     # Express API and secure ElevenLabs integration
 ```
 
 ## Features
@@ -29,6 +32,7 @@ src/
 - **Live OSM Floor Plan** - Fetches real indoor mapping data from the Overpass API and renders rooms, corridors, and doors as colored polygons on a Leaflet map.
 - **Multi-Level wayfinding** - Filter by floor: Basement (B1), Ground (G), First Floor, Second Floor.
 - **QR Code Scanner** - Open the scanner via the FAB button (bottom-right). Scan `room_*` or `artwork_*` QR codes to set your current location or destination.
+- **Artwork Text-to-Speech** - Listen to artwork descriptions in Danish, English, German, French, Swedish, or Italian. The ElevenLabs key stays on the backend.
 - **Route Guidance** - After setting a destination, step-by-step wayfinding is displayed in the sidebar panel.
 - **Visit History** - Tracks all rooms you've scanned into during the session.
 
@@ -44,10 +48,13 @@ src/
 
 ```bash
 npm install
+npx -y @elevenlabs/cli@latest onboard init
 npm run dev
 ```
 
-Open http://localhost:3000
+The onboarding command stores `ELEVENLABS_API_KEY` in the ignored `.env.local` file. Do not expose it through a `VITE_` variable or commit it. The development command runs Vite and the Express backend; open http://localhost:3000.
+
+For production, build the frontend with `npm run build`, set `ELEVENLABS_API_KEY` in the server's environment, and run `npm start`. The Express server serves the built frontend and the `/api/tts` endpoint.
 
 ## QR Code Format
 
