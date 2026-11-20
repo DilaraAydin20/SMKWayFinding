@@ -9,7 +9,21 @@ export const useMuseumwayfinding = defineStore('museumwayfinding', {
     rooms: [],
     
     // List of artworks with their locations
-    artworks: [],
+    artworks: [ {
+    id: 'test_artwork',
+    name: 'Testmaleri',
+    descriptions: {
+      da: 'Dette er et testmaleri på SMK. Beskrivelsen bruges til at teste vores QR-scanner og ElevenLabs.',
+      en: 'This is a test painting at SMK. This description is used to test our QR scanner and ElevenLabs.',
+      de: 'Dies ist ein Testgemälde im SMK.',
+      fr: 'Ceci est une peinture de test au SMK.',
+      sv: 'Detta är en testmålning på SMK.',
+      it: 'Questo è un dipinto di prova allo SMK.'
+    }
+  }],
+
+    // Artwork selected by scanning an artwork QR code
+    selectedArtworkId: null,
     
     // The route from current position to destination
     wayfindingRoute: [],
@@ -46,6 +60,7 @@ export const useMuseumwayfinding = defineStore('museumwayfinding', {
     
     // Set the destination artwork from a QR code scan
     setDestinationArtwork(artworkId) {
+      this.selectedArtworkId = artworkId;
       const artwork = this.artworks.find(a => a.id === artworkId);
       if (artwork && artwork.roomId !== this.currentLocation) {
         // Calculate route to that artwork's room
@@ -102,6 +117,15 @@ export const useMuseumwayfinding = defineStore('museumwayfinding', {
     getCurrentRoomName: (state) => (roomId) => {
       const room = state.rooms.find(r => r.id === roomId);
       return room ? room.name : 'Unknown Room';
+    },
+
+    selectedArtwork: (state) => {
+      if (!state.selectedArtworkId) return null;
+
+      return state.artworks.find(artwork => artwork.id === state.selectedArtworkId) || {
+        id: state.selectedArtworkId,
+        name: state.selectedArtworkId.replace(/[_-]+/g, ' ')
+      };
     }
   }
 })
