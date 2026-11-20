@@ -1,0 +1,7 @@
+Material Design icons by Google:
+
+- stairs.svg: https://github.com/google/material-design-icons/tree/master/src/places/stairs/materialicons
+- elevator.svg: https://github.com/google/material-design-icons/tree/master/src/places/elevator/materialicons
+
+The icon files are unmodified and licensed under the Apache License, Version 2.0.
+See LICENSE-MATERIAL-DESIGN-ICONS.txt.

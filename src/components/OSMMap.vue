@@ -14,14 +14,45 @@ Rendering: Uses Leaflet.js to render actual OSM way coordinates as polygons on t
     <!-- Map Controls -->
     <div class="map-controls">
       <button @click="resetView" :disabled="!isMapLoaded" class="btn btn-primary">Reset View</button>
-      <select v-model="currentLevel" @change="switchLevel" :disabled="!isMapLoaded">
-        <option value="all">All Levels</option>
-        <option value="-1">Basement (B1)</option>
-        <option value="0">Ground Floor (G)</option>
-        <option value="1">First Floor</option>
-        <option value="2">Second Floor</option>
-      </select>
+      <button
+        @click="startPathfinding"
+        :disabled="!isMapLoaded || pathfindingStep === 'origin' || pathfindingStep === 'destination'"
+        class="btn btn-primary"
+      >
+        {{ pathfindingStep === 'complete' ? 'Plan Another Route' : 'Plan Route' }}
+      </button>
+      <button
+        v-if="selectedStartRoom || selectedDestinationRoom"
+        @click="cancelPathfinding"
+        class="btn btn-secondary"
+      >
+        Reset Route
+      </button>
+      <form class="room-search-form" role="search" @submit.prevent="searchRoom">
+        <input
+          v-model="roomSearchQuery"
+          class="room-search-input"
+          type="search"
+          aria-label="Search room name or reference"
+          placeholder="Search room name or ref"
+          :disabled="!isMapLoaded"
+        />
+        <button type="submit" class="btn btn-primary" :disabled="!isMapLoaded">
+          Search
+        </button>
+        <button
+          v-if="searchedRoom"
+          type="button"
+          class="btn btn-secondary"
+          @click="clearRoomHighlight"
+        >
+          Clear Highlight
+        </button>
+      </form>
     </div>
+    <p v-if="roomSearchMessage" class="room-search-message" role="status">
+      {{ roomSearchMessage }}
+    </p>
 
     <!-- Loading State Overlay -->
     <Transition name="fade">
@@ -79,6 +110,33 @@ Rendering: Uses Leaflet.js to render actual OSM way coordinates as polygons on t
 
       <!-- Leaflet map container -->
       <div id="osm-map" :class="{ 'map-display': true, 'disabled': isLoading }"></div>
+
+      <div v-if="pathfindingStep !== 'idle'" class="route-prompt" role="status" aria-live="polite">
+        <p>{{ pathfindingPrompt }}</p>
+        <button
+          v-if="pathfindingStep === 'origin' || pathfindingStep === 'destination'"
+          type="button"
+          class="route-prompt-button"
+          @click="cancelPathfinding"
+        >
+          Cancel
+        </button>
+      </div>
+
+      <div class="level-buttons" role="group" aria-label="Select floor" :aria-disabled="!isMapLoaded">
+        <button
+          v-for="option in levelOptions"
+          :key="option.value"
+          type="button"
+          class="level-button"
+          :class="{ 'is-selected': currentLevel === option.value }"
+          :aria-pressed="currentLevel === option.value"
+          :disabled="!isMapLoaded"
+          @click="selectLevel(option.value)"
+        >
+          {{ option.label }}
+        </button>
+      </div>
 
       <!-- Scanner Drawer Overlay � single Transition handles enter/leave phases declaratively -->
       <Transition name="drawer">
@@ -145,12 +203,28 @@ const xIconPath = 'M6.25 6.3a.75.75 0 011.06 0L12 10.94l4.69-4.68a.75.75 0 011.0
 import { ref, onMounted, computed, onUnmounted } from 'vue'
 import QRScanner from './QRScanner.vue'
 import { useMuseumwayfinding } from '../stores/museumwayfinding.js'
+import stairsIconUrl from '../assets/icons/stairs.svg'
+import elevatorIconUrl from '../assets/icons/elevator.svg'
 
 // Store reference
 const store = useMuseumwayfinding()
 
 // Local state using Vue refs for reactivity
-const currentLevel = ref('all')
+const currentLevel = ref('1')
+const pathfindingStep = ref('idle')
+const selectedStartRoom = ref(null)
+const selectedDestinationRoom = ref(null)
+const routeWarning = ref('')
+const roomSearchQuery = ref('')
+const roomSearchMessage = ref('')
+const searchedRoom = ref(null)
+const nonInteractiveRoomIds = new Set(['1528606839', '1528606840', '1580154249'])
+const levelOptions = [
+  { value: '0', label: 'Basement' },
+  { value: '1', label: 'Ground' },
+  { value: '2', label: '1st Floor' },
+  { value: '3', label: '2nd Floor' }
+]
 let osmMapInstance = null
 const isMapLoaded = ref(false)
 const isLoading = ref(true)
@@ -163,9 +237,11 @@ const drawerOpen = ref(false)
 const showBuildingInfo = ref(false)
 
 // OSM Data storage (not reactive, used in callbacks)
-let indoorWaysRef = [] // Array of { id, coordinates: [[lat,lon]], level, name }
+let indoorWaysRef = [] // Indoor features with geometry, level, and name
 let nodeCache = {}     // Cache for node lookups by ID
 let indoorLayerGroup = null // Reference to the Leaflet layer group
+let pathfindingRouteLayer = null
+let plannedRouteSegments = []
 
 // Computed properties
 const currentRoomName = computed(() => {
@@ -174,6 +250,16 @@ const currentRoomName = computed(() => {
 
 const wayfindingRoute = computed(() => {
   return store.wayfindingRoute
+})
+
+const pathfindingPrompt = computed(() => {
+  if (pathfindingStep.value === 'origin') return 'Select your current location'
+  if (pathfindingStep.value === 'destination') return 'Where would you like to go?'
+  if (pathfindingStep.value === 'complete') {
+    const routeSummary = `Route selected: ${selectedStartRoom.value.name} → ${selectedDestinationRoom.value.name}`
+    return routeWarning.value ? `${routeSummary}. ${routeWarning.value}` : routeSummary
+  }
+  return ''
 })
 
 function toggleScanner() {
@@ -193,6 +279,396 @@ function switchLevel() {
   if (!osmMapInstance) return;
   console.log('Switching to level:', currentLevel.value)
   updateBuildingDisplayForLevel(currentLevel.value)
+  renderPathfindingRoute()
+}
+
+function selectLevel(level) {
+  currentLevel.value = level
+  switchLevel()
+}
+
+function startPathfinding() {
+  selectedStartRoom.value = null
+  selectedDestinationRoom.value = null
+  pathfindingStep.value = 'origin'
+  clearPathfindingRoute()
+  refreshPathfindingStyles()
+}
+
+function cancelPathfinding() {
+  pathfindingStep.value = 'idle'
+  selectedStartRoom.value = null
+  selectedDestinationRoom.value = null
+  clearPathfindingRoute()
+  refreshPathfindingStyles()
+}
+
+function selectRoomForPathfinding(way) {
+  if (way.type !== 'room') return
+
+  if (pathfindingStep.value === 'origin') {
+    selectedStartRoom.value = way
+    pathfindingStep.value = 'destination'
+  } else if (pathfindingStep.value === 'destination') {
+    selectedDestinationRoom.value = way
+    pathfindingStep.value = 'complete'
+  } else {
+    return
+  }
+
+  refreshPathfindingStyles()
+  if (pathfindingStep.value === 'complete') {
+    createPathfindingRoute()
+  }
+}
+
+function isPathfindingRoom(way) {
+  return selectedStartRoom.value?.id === way.id || selectedDestinationRoom.value?.id === way.id
+}
+
+function getWayStyle(way) {
+  if (searchedRoom.value?.id === way.id) {
+    return { color: '#d39e00', fillColor: '#ffc107', fillOpacity: 0.65, weight: 4 }
+  }
+  if (selectedDestinationRoom.value?.id === way.id) {
+    return { color: '#c82333', fillColor: '#dc3545', fillOpacity: 0.55, weight: 4 }
+  }
+  if (selectedStartRoom.value?.id === way.id) {
+    return { color: '#218838', fillColor: '#28a745', fillOpacity: 0.55, weight: 4 }
+  }
+
+  switch (way.type) {
+    case 'room':
+      return { color: '#3388ff', fillColor: '#3388ff', fillOpacity: 0.15, weight: 2 }
+    case 'corridor':
+      return { color: '#666666', fillColor: '#999999', fillOpacity: 0.1, weight: 1 }
+    case 'door':
+      return { color: '#ff6600', fillColor: '#ff9933', fillOpacity: 0.5, weight: 2 }
+    default:
+      return { color: '#888888', fillColor: '#aaaaaa', fillOpacity: 0.1, weight: 1 }
+  }
+}
+
+function createIndoorWayLayer(way) {
+  const style = getWayStyle(way)
+  const layerOptions = {
+    ...style,
+    interactive: !nonInteractiveRoomIds.has(String(way.id))
+  }
+  let layer
+
+  if (way.type === 'steps' || way.type === 'elevator') {
+    const position = way.geometry === 'point'
+      ? way.coordinates[0]
+      : way.coordinates.reduce(
+        ([lat, lon], [nextLat, nextLon]) => [lat + nextLat / way.coordinates.length, lon + nextLon / way.coordinates.length],
+        [0, 0]
+      )
+    const iconUrl = way.type === 'steps' ? stairsIconUrl : elevatorIconUrl
+    const featureLabel = way.type === 'steps' ? 'Stairs' : 'Elevator'
+
+    layer = L.marker(position, {
+      interactive: layerOptions.interactive,
+      title: way.name,
+      alt: featureLabel,
+      icon: L.divIcon({
+        className: `leaflet-div-icon indoor-facility-marker indoor-facility-marker--${way.type}`,
+        html: `<img src="${iconUrl}" alt="" />`,
+        iconSize: [36, 36],
+        iconAnchor: [18, 18],
+        popupAnchor: [0, -18]
+      })
+    })
+  } else {
+    layer = way.geometry === 'point'
+      ? L.circleMarker(way.coordinates[0], { ...layerOptions, radius: 6 })
+      : way.geometry === 'line'
+        ? L.polyline(way.coordinates, layerOptions)
+        : L.polygon(way.coordinates, layerOptions)
+  }
+
+  layer
+    .addTo(indoorLayerGroup)
+    .bindPopup(`
+      <b>${way.name}</b><br/>
+      Type: ${way.type}
+    `)
+
+  if (typeof layer.setStyle === 'function') {
+    layer.on('mouseover', function() {
+      if (!isPathfindingRoom(way)) {
+        this.setStyle({ fillOpacity: 0.3, weight: 3 })
+      }
+    })
+    layer.on('mouseout', function() {
+      this.setStyle(getWayStyle(way))
+    })
+  }
+  layer.on('click', () => selectRoomForPathfinding(way))
+  way.layer = layer
+}
+
+function refreshPathfindingStyles() {
+  indoorWaysRef.forEach(way => {
+    if (way.layer && typeof way.layer.setStyle === 'function') {
+      way.layer.setStyle(getWayStyle(way))
+    }
+  })
+}
+
+function getFeaturePosition(feature) {
+  if (feature.geometry === 'point') return feature.coordinates[0]
+
+  return feature.coordinates.reduce(
+    ([lat, lon], [nextLat, nextLon]) => [
+      lat + nextLat / feature.coordinates.length,
+      lon + nextLon / feature.coordinates.length
+    ],
+    [0, 0]
+  )
+}
+
+function getDistance(firstPosition, secondPosition) {
+  return L.latLng(firstPosition[0], firstPosition[1])
+    .distanceTo(L.latLng(secondPosition[0], secondPosition[1]))
+}
+
+function findNearestFeature(features, position) {
+  return features.reduce((nearest, feature) => {
+    const distance = getDistance(position, getFeaturePosition(feature))
+    return !nearest || distance < nearest.distance ? { feature, distance } : nearest
+  }, null)?.feature || null
+}
+
+function findNearestDoor(level, position) {
+  const doors = indoorWaysRef.filter(way => way.type === 'door' && isFeatureOnLevel(way, level))
+  return findNearestFeature(doors, position)
+}
+
+function getLevelsBetween(startLevel, destinationLevel) {
+  const direction = destinationLevel > startLevel ? 1 : -1
+  const levels = []
+
+  for (let level = startLevel; ; level += direction) {
+    levels.push(level)
+    if (level === destinationLevel) return levels
+  }
+}
+
+function findConnectorChain(levels, originPosition) {
+  const connectorsOnStartingLevel = indoorWaysRef.filter(
+    way => ['steps', 'elevator'].includes(way.type) && isFeatureOnLevel(way, levels[0])
+  )
+  const startingConnector = findNearestFeature(connectorsOnStartingLevel, originPosition)
+  if (!startingConnector) return null
+
+  const chain = [{
+    feature: startingConnector,
+    level: levels[0],
+    position: getFeaturePosition(startingConnector),
+    type: startingConnector.type
+  }]
+
+  for (const level of levels.slice(1)) {
+    const previousConnector = chain[chain.length - 1]
+    const connectors = indoorWaysRef.filter(
+      way => ['steps', 'elevator'].includes(way.type) && isFeatureOnLevel(way, level)
+    )
+    const matchingTypeConnectors = connectors.filter(way => way.type === previousConnector.type)
+    const connectorCandidates = matchingTypeConnectors.length ? matchingTypeConnectors : connectors
+    const connector = findNearestFeature(connectorCandidates, previousConnector.position)
+
+    if (!matchingTypeConnectors.length && connectors.length) {
+      addRouteWarning('The same stair or elevator is not mapped on every floor; using the nearest connector.')
+    } else if (!connector) {
+      addRouteWarning('A floor has no mapped stairs or elevator; continuing at the nearest mapped connector position.')
+    }
+
+    chain.push(connector
+      ? {
+          feature: connector,
+          level,
+          position: getFeaturePosition(connector),
+          type: connector.type
+        }
+      : {
+          feature: null,
+          level,
+          position: previousConnector.position,
+          type: previousConnector.type
+        })
+  }
+
+  return chain
+}
+
+function addRouteWarning(message) {
+  routeWarning.value = [routeWarning.value, message].filter(Boolean).join(' ')
+}
+
+function addPathfindingSegment(level, points) {
+  const coordinates = points.filter(Boolean).filter((point, index, allPoints) =>
+    index === 0 || getDistance(allPoints[index - 1], point) > 0.25
+  )
+  if (coordinates.length > 1) {
+    plannedRouteSegments.push({ level, coordinates })
+  }
+}
+
+function clearPathfindingRoute() {
+  plannedRouteSegments = []
+  routeWarning.value = ''
+  if (pathfindingRouteLayer) pathfindingRouteLayer.clearLayers()
+}
+
+function renderPathfindingRoute() {
+  if (!pathfindingRouteLayer || !osmMapInstance) return
+
+  pathfindingRouteLayer.clearLayers()
+  const visibleSegments = plannedRouteSegments.filter(
+    segment => segment.level === parseInt(currentLevel.value, 10)
+  )
+
+  visibleSegments.forEach(segment => {
+    L.polyline(segment.coordinates, {
+      color: '#ffffff',
+      weight: 9,
+      opacity: 0.95,
+      interactive: false
+    }).addTo(pathfindingRouteLayer)
+
+    L.polyline(segment.coordinates, {
+      className: 'planned-route-line',
+      color: '#0759e8',
+      weight: 5,
+      opacity: 1,
+      lineCap: 'round',
+      lineJoin: 'round',
+      interactive: false
+    }).addTo(pathfindingRouteLayer).bringToFront()
+  })
+
+  if (visibleSegments.length) {
+    const routePoints = visibleSegments.flatMap(segment => segment.coordinates)
+    osmMapInstance.map.fitBounds(L.latLngBounds(routePoints), {
+      padding: [50, 50],
+      maxZoom: 21
+    })
+  }
+}
+
+function createPathfindingRoute() {
+  const startRoom = selectedStartRoom.value
+  const destinationRoom = selectedDestinationRoom.value
+  if (!startRoom || !destinationRoom) return
+
+  clearPathfindingRoute()
+  addRouteWarning('Route is estimated using nearby mapped doors and connectors.')
+  const startLevel = startRoom.level
+  const destinationLevel = destinationRoom.level
+  const startPosition = getFeaturePosition(startRoom)
+  const destinationPosition = getFeaturePosition(destinationRoom)
+  const startDoor = findNearestDoor(startLevel, startPosition)
+  const destinationDoor = findNearestDoor(destinationLevel, destinationPosition)
+
+  if (!startDoor || !destinationDoor) {
+    addRouteWarning('Some room doors are not mapped; using direct links where needed.')
+  }
+
+  if (startLevel === destinationLevel) {
+    addPathfindingSegment(startLevel, [
+      startPosition,
+      startDoor && getFeaturePosition(startDoor),
+      destinationDoor && getFeaturePosition(destinationDoor),
+      destinationPosition
+    ])
+  } else {
+    const levels = getLevelsBetween(startLevel, destinationLevel)
+    const originAnchor = startDoor ? getFeaturePosition(startDoor) : startPosition
+    const connectorChain = findConnectorChain(levels, originAnchor)
+
+    if (!connectorChain) {
+      addPathfindingSegment(startLevel, [
+        startPosition,
+        startDoor && getFeaturePosition(startDoor)
+      ])
+      addPathfindingSegment(destinationLevel, [
+        destinationDoor && getFeaturePosition(destinationDoor),
+        destinationPosition
+      ])
+      addRouteWarning('No stairs or elevators are mapped on the starting floor, so the floor change cannot be routed.')
+    } else {
+      connectorChain.forEach((connector, index) => {
+        const previousConnector = connectorChain[index - 1]
+        const nextConnector = connectorChain[index + 1]
+        const connectorDoor = findNearestDoor(connector.level, connector.position)
+
+        if (index === 0) {
+          addPathfindingSegment(connector.level, [
+            startPosition,
+            startDoor && getFeaturePosition(startDoor),
+            connectorDoor && getFeaturePosition(connectorDoor),
+            connector.position
+          ])
+        } else if (index === connectorChain.length - 1) {
+          addPathfindingSegment(connector.level, [
+            connector.position,
+            connectorDoor && getFeaturePosition(connectorDoor),
+            destinationDoor && getFeaturePosition(destinationDoor),
+            destinationPosition
+          ])
+        } else {
+          const nextConnectorDoor = findNearestDoor(connector.level, nextConnector.position)
+          addPathfindingSegment(connector.level, [
+            previousConnector.position,
+            connectorDoor && getFeaturePosition(connectorDoor),
+            nextConnectorDoor && getFeaturePosition(nextConnectorDoor),
+            nextConnector.position
+          ])
+        }
+      })
+    }
+  }
+
+  selectLevel(String(startLevel))
+}
+
+function clearRoomHighlight() {
+  searchedRoom.value = null
+  roomSearchMessage.value = ''
+  refreshPathfindingStyles()
+}
+
+function searchRoom() {
+  const query = roomSearchQuery.value.trim().toLocaleLowerCase()
+  if (!query) {
+    roomSearchMessage.value = 'Enter a room name or ref.'
+    return
+  }
+
+  const rooms = indoorWaysRef.filter(way => way.type === 'room')
+  const getSearchValues = room => [room.otherTags?.name, room.otherTags?.ref]
+    .filter(Boolean)
+    .map(value => String(value).trim().toLocaleLowerCase())
+  const exactMatch = rooms.find(room => getSearchValues(room).includes(query))
+  const matchedRoom = exactMatch || rooms.find(room =>
+    getSearchValues(room).some(value => value.includes(query))
+  )
+
+  if (!matchedRoom) {
+    searchedRoom.value = null
+    roomSearchMessage.value = `No room found for "${roomSearchQuery.value.trim()}".`
+    refreshPathfindingStyles()
+    return
+  }
+
+  searchedRoom.value = matchedRoom
+  roomSearchMessage.value = `Found ${matchedRoom.name} on floor ${matchedRoom.level}.`
+  selectLevel(String(matchedRoom.level))
+  osmMapInstance.map.fitBounds(L.latLngBounds(matchedRoom.coordinates), {
+    padding: [50, 50],
+    maxZoom: 21
+  })
 }
 
 function resetView() {
@@ -235,10 +711,25 @@ async function loadOSMData() {
       attribution: '� <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
     }).addTo(osmMapInstance.map);
 
-    // Add level control (updated for -1,0,1,2 levels)
+    // Add detailed SMK building information control - using OSM data approach
+    const infoControl = L.control({ position: 'bottomleft' });
+    infoControl.onAdd = function() {
+      const div = L.DomUtil.create('div', 'building-info');
+      div.innerHTML = `
+        <div style="background:white; padding:10px; border-radius:5px; box-shadow: 0 0 10px rgba(0,0,0,0.2);">
+          <h4>SMK Building</h4>
+          <p><strong>Data Source:</strong> OpenStreetMap Indoor Mapping<br/>
+             <strong>Note:</strong> Real room data from OSM contributors</p>
+        </div>`;
+      return div;
+    };
+    infoControl.addTo(osmMapInstance.map);
+
+    // Floor buttons are displayed over the map.
 
     // Query Overpass API for indoor mapping data around SMK
     await fetchIndoorData()
+    pathfindingRouteLayer = L.layerGroup().addTo(osmMapInstance.map)
     
     isMapLoaded.value = true
   }
@@ -257,10 +748,49 @@ async function fetchIndoorData() {
   const overpassQuery = `
     [out:json][timeout:25];
     
-    // Find the building relation or way for SMK
+    // Fetch indoor features, stairs, and elevators, including point features
     (
-      // Query all indoor=room, indoor=corridor, indoor=door features around SMK
       way["indoor"](
+        55.6870,12.5760,
+        55.6900,12.5800
+      );
+      way["door"](
+        55.6870,12.5760,
+        55.6900,12.5800
+      );
+      way["highway"~"^(steps|elevator)$"](
+        55.6870,12.5760,
+        55.6900,12.5800
+      );
+      way["indoor"~"^(stairs|steps|elevator)$"](
+        55.6870,12.5760,
+        55.6900,12.5800
+      );
+      way["elevator"](
+        55.6870,12.5760,
+        55.6900,12.5800
+      );
+      node["door"](
+        55.6870,12.5760,
+        55.6900,12.5800
+      );
+      node["indoor"="door"](
+        55.6870,12.5760,
+        55.6900,12.5800
+      );
+      node["highway"="elevator"](
+        55.6870,12.5760,
+        55.6900,12.5800
+      );
+      node["highway"="steps"](
+        55.6870,12.5760,
+        55.6900,12.5800
+      );
+      node["indoor"~"^(stairs|steps|elevator)$"](
+        55.6870,12.5760,
+        55.6900,12.5800
+      );
+      node["elevator"](
         55.6870,12.5760,
         55.6900,12.5800
       );
@@ -307,10 +837,25 @@ function processOSMData(osmData) {
     }
   })
 
-  // Process ways with indoor tags
+  // Process indoor ways and door nodes
   const indoorWaysFound = []
   osmData.elements.forEach(element => {
-    if (element.type === 'way' && element.tags?.indoor) {
+    const featureType = getFeatureType(element.tags || {})
+    if (
+      element.type === 'node' &&
+      ['door', 'steps', 'elevator'].includes(featureType) &&
+      element.lat !== undefined
+    ) {
+      indoorWaysFound.push({
+        id: element.id,
+        geometry: 'point',
+        coordinates: [[element.lat, element.lon]],
+        level: parseInt(element.tags.level || '0'),
+        name: getFeatureName(element.tags, featureType, element.id),
+        type: featureType,
+        otherTags: { ...element.tags }
+      })
+    } else if (element.type === 'way' && featureType) {
       const wayNodes = element.nodes || []
       
       // Convert node IDs to actual coordinates using our cache
@@ -323,17 +868,45 @@ function processOSMData(osmData) {
         return null
       }).filter(coord => coord !== null)  // Remove any missing nodes
 
-      if (coords.length >= 3) {  // Need at least 3 points for a polygon
+      if ((featureType === 'door' || featureType === 'elevator') && coords.length > 0) {
+        const center = coords.reduce(
+          ([lat, lon], [nextLat, nextLon]) => [lat + nextLat / coords.length, lon + nextLon / coords.length],
+          [0, 0]
+        )
         indoorWaysFound.push({
           id: element.id,
+          geometry: 'point',
+          coordinates: [center],
+          level: parseInt(element.tags.level || '0'),
+          name: getFeatureName(element.tags, featureType, element.id),
+          type: featureType,
+          otherTags: { ...element.tags }
+        })
+      } else if (featureType === 'steps' && coords.length >= 2) {
+        indoorWaysFound.push({
+          id: element.id,
+          geometry: 'line',
           coordinates: coords,
           level: parseInt(element.tags.level || '0'),
-          name: element.tags.name || `Room ${element.id}`,
+          name: getFeatureName(element.tags, featureType, element.id),
+          type: featureType,
+          otherTags: { ...element.tags }
+        })
+      } else if (coords.length >= 3) {
+        const isRoomOrArea = element.tags.indoor === 'room' || element.tags.indoor === 'area'
+        indoorWaysFound.push({
+          id: element.id,
+          geometry: 'polygon',
+          coordinates: coords,
+          level: parseInt(element.tags.level || '0'),
+          name: element.tags.name || (
+            isRoomOrArea ? element.tags.ref || 'Unnamed Room' : `${element.tags.indoor} ${element.id}`
+          ),
           type: element.tags.indoor,  // room, corridor, door
           otherTags: { ...element.tags }
         })
       } else {
-        console.warn(`Way ${element.id} has insufficient nodes (${coords.length}) for a polygon`)
+        console.warn(`Way ${element.id} has insufficient nodes (${coords.length}) for an indoor feature`)
       }
     }
   })
@@ -341,13 +914,39 @@ function processOSMData(osmData) {
   indoorWaysRef = indoorWaysFound
   console.log(`Processed ${indoorWaysFound.length} indoor ways from OSM data`)
 
-  // Add entrance marker at the reference coordinate (Node 13947795305) - this is where your node points
-  L.marker([55.6887, 12.5783])
-    .addTo(osmMapInstance.map)
-    .bindPopup('<b>Building Entrance</b><br>SMK Main Entry Point (OSM Node: 13947795305)')
-
   // Render the indoor features on the map
   renderIndoorFeatures()
+}
+
+function getFeatureType(tags) {
+  if (tags.door || tags.indoor === 'door') return 'door'
+  if (tags.highway === 'steps' || tags.indoor === 'steps' || tags.indoor === 'stairs') return 'steps'
+  if (
+    tags.highway === 'elevator' ||
+    tags.indoor === 'elevator' ||
+    (!tags.indoor && tags.elevator && tags.elevator !== 'no')
+  ) return 'elevator'
+  return tags.indoor || null
+}
+
+function getFeatureName(tags, type, id) {
+  if (tags.name) return tags.name
+  if (tags.ref) return tags.ref
+  if (type === 'room' || type === 'area') return 'Unnamed Room'
+  if (type === 'steps') return 'Steps'
+  if (type === 'elevator') return 'Elevator'
+  return `Door ${id}`
+}
+
+function getFeatureLevels(feature) {
+  return String(feature.otherTags?.level || feature.level || 0)
+    .split(';')
+    .map(value => parseInt(value.trim(), 10))
+    .filter(Number.isFinite)
+}
+
+function isFeatureOnLevel(feature, level) {
+  return getFeatureLevels(feature).includes(parseInt(level, 10))
 }
 
 function renderIndoorFeatures() {
@@ -357,76 +956,16 @@ function renderIndoorFeatures() {
 
   // Create a layer group to hold all indoor features
   indoorLayerGroup = L.layerGroup()
+  const visibleWays = indoorWaysRef.filter(way => isFeatureOnLevel(way, currentLevel.value))
 
-  indoorWaysRef.forEach((way, index) => {
-    let style = {}
-    
-    switch (way.type) {
-      case 'room':
-        style = {
-          color: '#3388ff',
-          fillColor: '#3388ff',
-          fillOpacity: 0.15,
-          weight: 2
-        }
-        break
-      case 'corridor':
-        style = {
-          color: '#666666',
-          fillColor: '#999999',
-          fillOpacity: 0.1,
-          weight: 1
-        }
-        break
-      case 'door':
-        // For doors, we might want to show them as points or small rectangles
-        style = {
-          color: '#ff6600',
-          fillColor: '#ff9933',
-          fillOpacity: 0.5,
-          weight: 2
-        }
-        break
-      default:
-        style = {
-          color: '#888888',
-          fillColor: '#aaaaaa',
-          fillOpacity: 0.1,
-          weight: 1
-        }
-    }
-
-    const polygon = L.polygon(way.coordinates, style)
-      .addTo(indoorLayerGroup)
-      .bindPopup(`
-        <b>${way.name}</b><br/>
-        Type: ${way.type}<br/>
-        Level: ${way.level}
-      `)
-
-    // Add hover effect for better interactivity
-    polygon.on('mouseover', function() {
-      this.setStyle({ fillOpacity: 0.3, weight: 3 })
-    })
-    
-    polygon.on('mouseout', function() {
-      if (way.type === 'room') {
-        this.setStyle({ fillOpacity: 0.15, weight: 2 })
-      } else {
-        this.setStyle(style)
-      }
-    })
-
-    // Store reference to layer for filtering by level later
-    way.layer = polygon
-  })
+  visibleWays.forEach(createIndoorWayLayer)
 
   // Add the indoor features layer group to the map
   indoorLayerGroup.addTo(map)
 
   // Fit bounds to show all indoor features if we have any
-  if (indoorWaysRef.length > 0) {
-    const bounds = L.latLngBounds(indoorWaysRef.flatMap(way => way.coordinates))
+  if (visibleWays.length > 0) {
+    const bounds = L.latLngBounds(visibleWays.flatMap(way => way.coordinates))
     osmMapInstance.map.fitBounds(bounds, { padding: [50, 50] })
   }
 }
@@ -434,46 +973,20 @@ function renderIndoorFeatures() {
 function updateBuildingDisplayForLevel(level) {
   if (!osmMapInstance || !indoorLayerGroup) return;
 
-  const map = osmMapInstance.map
   indoorLayerGroup.clearLayers()
 
-  // Filter ways by selected level (or show all if 'all' is selected)
-  const filteredWays = level === 'all'
-    ? indoorWaysRef
-    : indoorWaysRef.filter(way => way.level === parseInt(level))
+  const filteredWays = indoorWaysRef.filter(way => isFeatureOnLevel(way, level))
 
   console.log(`Showing ${filteredWays.length} features for level: ${level}`)
 
   // Re-render the filtered ways
-  filteredWays.forEach((way) => {
-    let style = {}
-    
-    switch (way.type) {
-      case 'room':
-        style = { color: '#3388ff', fillColor: '#3388ff', fillOpacity: 0.15, weight: 2 }
-        break
-      case 'corridor':
-        style = { color: '#666666', fillColor: '#999999', fillOpacity: 0.1, weight: 1 }
-        break
-      default:
-        style = way._originalStyle || { color: '#888888', fillColor: '#aaaaaa', fillOpacity: 0.1, weight: 1 }
-    }
+  filteredWays.forEach(createIndoorWayLayer)
 
-    const polygon = L.polygon(way.coordinates, style)
-      .addTo(indoorLayerGroup)
-      .bindPopup(`
-        <b>${way.name}</b><br/>
-        Type: ${way.type}<br/>
-        Level: ${way.level}
-      `)
-  })
-
-  // Add entrance marker if showing all levels or ground floor
-  if (level === 'all' || level === '0') {
-    L.marker([55.6887, 12.5783])
-      .addTo(indoorLayerGroup)
-      .bindPopup('<b>Building Entrance</b><br>SMK Main Entry Point (OSM Node: 13947795305)')
+  if (filteredWays.length > 0) {
+    const bounds = L.latLngBounds(filteredWays.flatMap(way => way.coordinates))
+    osmMapInstance.map.fitBounds(bounds, { padding: [50, 50] })
   }
+
 }
 
 // Cleanup when component is unmounted
@@ -504,7 +1017,46 @@ onUnmounted(() => {
   height: calc(100vh - 240px); /* Account for header, controls, and wayfinding panel */
 }
 
-/* ===== Mobile-First FAB Button (Floating Action Button) ===== */
+
+.level-buttons {
+  position: absolute;
+  left: 12px;
+  right: 88px;
+  bottom: 14px;
+  z-index: 1000;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 6px;
+  border-radius: 6px;
+  background-color: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+
+.level-button {
+  padding: 7px 10px;
+  border: 1px solid #1a4d78;
+  border-radius: 4px;
+  background-color: white;
+  color: #1a4d78;
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.level-button:hover:not(:disabled),
+.level-button.is-selected {
+  background-color: #1a4d78;
+  color: white;
+}
+
+.level-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* ===== FAB Button (Floating Action Button) ===== */
+
 .fab-button {
   position: absolute;
   bottom: 16px;
@@ -570,10 +1122,11 @@ onUnmounted(() => {
 .map-controls {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  justify-content: space-between;
+  justify-content: flex-start;
   align-items: center;
-  padding: 12px;
+  gap: 10px;
+  margin-bottom: 10px;
+  padding: 10px;
   background-color: #f5f5f5;
   border-radius: 0;
   /* Touch-friendly controls */
@@ -586,6 +1139,80 @@ onUnmounted(() => {
   padding: 10px 16px;
   font-size: 16px; /* Prevents zoom on iOS */
   border-radius: 8px;
+}
+
+.room-search-form {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.room-search-input {
+  width: 220px;
+  max-width: 100%;
+  padding: 8px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.room-search-message {
+  margin: 0 10px 10px;
+}
+
+:deep(.indoor-facility-marker) {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid;
+  border-radius: 50%;
+  background-color: white;
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.45);
+}
+
+:deep(.indoor-facility-marker img) {
+  display: block;
+  width: 24px;
+  height: 24px;
+}
+
+:deep(.indoor-facility-marker--steps) {
+  border-color: #6f42c1;
+}
+
+:deep(.indoor-facility-marker--elevator) {
+  border-color: #20a4a8;
+}
+
+.route-prompt {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1001;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: calc(100% - 32px);
+  padding: 10px 14px;
+  border-radius: 6px;
+  background-color: white;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+}
+
+.route-prompt p {
+  margin: 0;
+  font-weight: 600;
+}
+
+.route-prompt-button {
+  padding: 5px 9px;
+  border: 1px solid #1a4d78;
+  border-radius: 4px;
+  background-color: white;
+  color: #1a4d78;
+  cursor: pointer;
 }
 
 .map-display {
@@ -711,7 +1338,15 @@ onUnmounted(() => {
   color: white;
 }
 
-/* ===== Mobile-First Drawer ===== */
+
+.building-info {
+  font-size: small;
+}
+
+/* ===== Drawer Transition Hooks (Vue-managed) ===== */
+
+/* Overlay � fades in/out behind the panel. Teleported to body so it spans full viewport. */
+
 .drawer-enter-active,
 .drawer-leave-active {
   transition: opacity 0.3s ease;
