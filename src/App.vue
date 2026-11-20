@@ -1,5 +1,7 @@
 <script setup>
 import OSMMap from './components/OSMMap.vue'
+import VisitedRooms from './components/VisitedRooms.vue'
+import Artwork from './components/Artwork.vue';
 
 import ArtworkAudioGuide from './components/ArtworkAudioGuide.vue'
 
@@ -38,7 +40,9 @@ const store = useMuseumwayfinding()
         <ArtworkAudioGuide :artwork="store.selectedArtwork" />
 
       </div>
+      
     </main>
+    <Artwork/>
   </div>
 </template>
 
@@ -48,11 +52,12 @@ const store = useMuseumwayfinding()
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   color: #2c3e50;
-  /* Mobile-first: full viewport height */
   height: 100vh;
+  height: 100dvh;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .app-header {
@@ -84,18 +89,16 @@ const store = useMuseumwayfinding()
 .app-main {
   display: flex;
   flex-direction: column;
-  flex: 1;
-  overflow: hidden;
-  min-height: 0; /* Critical for flex child scrolling */
+  flex: 0 0 auto;
+  overflow: visible;
 }
 
 .content-section {
-  flex-grow: 1;
+  flex: 1 1 auto;
   padding: 0;
-  overflow: hidden;
+  overflow: visible;
   display: flex;
   flex-direction: column;
-  min-height: 0;
 }
 
 .sidebar {

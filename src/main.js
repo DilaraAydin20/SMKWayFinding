@@ -2,7 +2,7 @@ import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 
 // Import Leaflet
-import 'leaflet'
+import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 
 // Import global mobile-first styles

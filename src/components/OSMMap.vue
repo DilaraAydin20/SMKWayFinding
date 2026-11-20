@@ -270,6 +270,12 @@ function closeDrawer() {
   drawerOpen.value = false
 }
 
+// Remove existing map before initializing a new one
+if (osmMapInstance?.map) {
+  osmMapInstance.map.remove()
+  osmMapInstance = null
+}
+
 function toggleBuildingInfo() {
   showBuildingInfo.value = !showBuildingInfo.value
 }
@@ -707,7 +713,8 @@ if (osmMapInstance?.map) {
         center: center,
         zoom: 19,
         minZoom: 17,
-        maxZoom: 22
+        maxZoom: 22,
+        scrollWheelZoom: false
       })
     }
     

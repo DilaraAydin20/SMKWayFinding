@@ -56,6 +56,7 @@
 const warningCirclePath = 'M12 8v4m0 4h.01'
 // Warning circle background: <circle cx=\x2712\x27 cy=\x2712\x27 r=\x2710\x27/>
 import { ref, computed, onUnmounted } from 'vue'
+import jsQR from 'jsqr';
 import { useMuseumwayfinding } from '../stores/museumwayfinding.js'
 
 const store = useMuseumwayfinding()
