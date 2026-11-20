@@ -2,6 +2,9 @@
 import OSMMap from './components/OSMMap.vue'
 import VisitedRooms from './components/VisitedRooms.vue'
 import Artwork from './components/Artwork.vue';
+
+import ArtworkAudioGuide from './components/ArtworkAudioGuide.vue'
+
 import { useMuseumwayfinding } from './stores/museumwayfinding.js'
 
 const store = useMuseumwayfinding()
@@ -21,7 +24,21 @@ const store = useMuseumwayfinding()
       
       <div class="sidebar">
         <!-- QR Scanner is accessed via the FAB button on the map (scan icon, bottom-right) -->
-        <VisitedRooms />
+
+
+        <!-- wayfinding History -->
+        <div class="history-panel">
+          <h3>Visited Rooms</h3>
+          <ul v-if="store.visitedRooms.length > 0">
+            <li v-for="roomId in store.visitedRooms" :key="roomId">
+              {{ store.getCurrentRoomName(roomId) }}
+            </li>
+          </ul>
+          <p v-else>No rooms visited yet</p>
+        </div>
+
+        <ArtworkAudioGuide :artwork="store.selectedArtwork" />
+
       </div>
       
     </main>
