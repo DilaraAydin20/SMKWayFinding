@@ -56,6 +56,7 @@
 const warningCirclePath = 'M12 8v4m0 4h.01'
 // Warning circle background: <circle cx=\x2712\x27 cy=\x2712\x27 r=\x2710\x27/>
 import { ref, computed, onUnmounted } from 'vue'
+import jsQR from 'jsqr';
 import { useMuseumwayfinding } from '../stores/museumwayfinding.js'
 
 const store = useMuseumwayfinding()
@@ -189,7 +190,14 @@ const TARGET_FPS = 15
 const FRAME_INTERVAL = 1000 / TARGET_FPS
 
 function animateScanLoop(timestamp) {
-  if (!scanning.value || !videoElement.value || videoElement.value.readyState < 2) return // HAVE_CURRENT_DATA+
+  if (!scanning.value) return
+
+const video = videoElement.value
+
+if (!video || video.readyState < 2) {
+  animFrameId = requestAnimationFrame(animateScanLoop)
+  return
+}
 
   const now = performance.now()
   if (timestamp && timestamp - lastFrameTime < FRAME_INTERVAL * 0.8) {
@@ -198,7 +206,7 @@ function animateScanLoop(timestamp) {
   }
   lastFrameTime = now
 
-  const video = videoElement.value
+  //const video = videoElement.value
   const canvas = canvasElement.value
 
   // Ensure hidden canvas matches current video dimensions (can change on orientation/resize).
@@ -211,8 +219,15 @@ function animateScanLoop(timestamp) {
   if (qrLibraryLoaded.value && typeof jsQR === 'function') {
     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
     const qrCode = jsQR(imageData.data, imageData.width, imageData.height)
-    if (qrCode?.data) handleScanResult(qrCode.data) // Stops scanning loop on success.
-  } else { animFrameId = requestAnimationFrame(animateScanLoop) }
+   // if (qrCode?.data) handleScanResult(qrCode.data) // Stops scanning loop on success.
+ // } else { animFrameId = requestAnimationFrame(animateScanLoop) }
+ if (qrCode?.data) {
+  handleScanResult(qrCode.data)
+  return
+}
+}
+
+animFrameId = requestAnimationFrame(animateScanLoop)
 }
 
 function handleScanResult(data) {
