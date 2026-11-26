@@ -32,4 +32,13 @@ export const i18n = createI18n({
   messages: { da, en, de, fr, sv, it }
 })
 
+export function setLanguage(language) {
+  if (!isSupportedLanguage(language)) return false
+
+  i18n.global.locale.value = language
+  document.documentElement.lang = language
+  localStorage.setItem(languageStorageKey, language)
+  return true
+}
+
 document.documentElement.lang = initialLanguage

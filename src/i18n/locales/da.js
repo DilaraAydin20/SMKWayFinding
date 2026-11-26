@@ -22,9 +22,13 @@ export default {
     viewOnSmk: 'Se værket på SMK',
     viewDescription: 'Se eller lyt til beskrivelsen',
     loadError: 'Kunstværkerne kunne ikke hentes. Prøv igen.',
-    loadMore: 'Indlæs flere',
     loading: 'Indlæser…',
-    allLoaded: 'Alle værker er indlæst',
+    retry: 'Prøv igen',
+    paginationLabel: 'Sider med kunstværker',
+    previousPage: 'Forrige',
+    nextPage: 'Næste',
+    pageNumber: 'Side {page}',
+    pageStatus: 'Side {page} af {totalPages}',
     close: 'Luk'
   },
   audio: {
@@ -73,6 +77,7 @@ export default {
     closeScanner: 'Luk scanner',
     retry: 'Prøv igen',
     loadError: 'OpenStreetMap-data kunne ikke indlæses.',
+    retryingAutomatically: 'Prøver automatisk igen…',
     currentLocation: 'Nuværende placering: {room}',
     scanToSetLocation: 'Scan en QR-kode i et rum for at angive din placering.',
     museumInfo: 'Museumsinformation:',

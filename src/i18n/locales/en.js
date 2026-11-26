@@ -22,9 +22,13 @@ export default {
     viewOnSmk: 'View artwork at SMK',
     viewDescription: 'Read or listen to the description',
     loadError: 'Could not load artworks. Please try again.',
-    loadMore: 'Load more',
     loading: 'Loading…',
-    allLoaded: 'All artworks are loaded',
+    retry: 'Try again',
+    paginationLabel: 'Artwork pages',
+    previousPage: 'Previous',
+    nextPage: 'Next',
+    pageNumber: 'Page {page}',
+    pageStatus: 'Page {page} of {totalPages}',
     close: 'Close'
   },
   audio: {
@@ -73,6 +77,7 @@ export default {
     closeScanner: 'Close scanner',
     retry: 'Retry',
     loadError: 'Could not load OpenStreetMap data.',
+    retryingAutomatically: 'Will retry automatically…',
     currentLocation: 'Current location: {room}',
     scanToSetLocation: 'Scan a room QR code to set your location.',
     museumInfo: 'Museum information:',

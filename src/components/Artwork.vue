@@ -1,31 +1,82 @@
 <script setup>
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { getArtworks, rows } from '../data/smk-api.js'
+import { artworksPerPage, getArtworkCounts, getArtworks } from '../data/smk-api.js'
 import ArtworkAudioGuide from './ArtworkAudioGuide.vue'
 import noImage from '../images/noimage.png'
 
 const { t } = useI18n()
 const artworks = ref([])
-const offset = ref(0)
+const currentPage = ref(1)
+const retryPage = ref(1)
+const onDisplayCount = ref(0)
+const notOnDisplayCount = ref(0)
+const countsLoaded = ref(false)
 const isLoading = ref(false)
-const hasMore = ref(true)
 const loadError = ref(false)
 const selectedArtwork = ref(null)
+const totalPages = computed(() => Math.ceil(
+  (onDisplayCount.value + notOnDisplayCount.value) / artworksPerPage
+))
+const visiblePages = computed(() => {
+  const firstPage = Math.max(1, currentPage.value - 1)
+  const lastPage = Math.min(totalPages.value, currentPage.value + 1)
+  const pages = []
 
-async function loadMore() {
-  if (isLoading.value || !hasMore.value) return
+  if (firstPage > 1) pages.push(1)
+  if (firstPage > 2) pages.push(null)
+  for (let page = firstPage; page <= lastPage; page += 1) pages.push(page)
+  if (lastPage < totalPages.value - 1) pages.push(null)
+  if (lastPage < totalPages.value) pages.push(totalPages.value)
+
+  return pages
+})
+
+async function getPageArtworks(page) {
+  const pageOffset = (page - 1) * artworksPerPage
+  const displayedOnPage = Math.max(
+    0,
+    Math.min(artworksPerPage, onDisplayCount.value - pageOffset)
+  )
+  const pageArtworks = displayedOnPage > 0
+    ? await getArtworks(pageOffset, true, displayedOnPage)
+    : []
+  const remainingSlots = artworksPerPage - pageArtworks.length
+
+  if (remainingSlots === 0) return pageArtworks
+
+  const notOnDisplayOffset = Math.max(0, pageOffset - onDisplayCount.value)
+  const notDisplayedArtworks = await getArtworks(notOnDisplayOffset, false, remainingSlots)
+  return [...pageArtworks, ...notDisplayedArtworks]
+}
+
+async function loadPage(page) {
+  if (isLoading.value) return
+  if (countsLoaded.value && (page < 1 || page > totalPages.value)) return
 
   isLoading.value = true
   loadError.value = false
 
   try {
-    const newArtworks = await getArtworks(offset.value)
-    artworks.value.push(...newArtworks)
-    offset.value += newArtworks.length
-    hasMore.value = newArtworks.length === rows
+    if (!countsLoaded.value) {
+      const counts = await getArtworkCounts()
+      onDisplayCount.value = counts.onDisplay
+      notOnDisplayCount.value = counts.notOnDisplay
+      countsLoaded.value = true
+    }
+
+    if (totalPages.value === 0) {
+      artworks.value = []
+      currentPage.value = 1
+      return
+    }
+
+    const requestedPage = Math.min(Math.max(page, 1), totalPages.value)
+    retryPage.value = requestedPage
+    artworks.value = await getPageArtworks(requestedPage)
+    currentPage.value = requestedPage
   } catch (error) {
-    console.error('Could not load more artworks:', error)
+    console.error('Could not load artworks:', error)
     loadError.value = true
   } finally {
     isLoading.value = false
@@ -50,7 +101,7 @@ function artworkYear(artwork) {
   return date?.display || date?.date || date?.earliest || ''
 }
 
-onMounted(loadMore)
+onMounted(() => loadPage(1))
 </script>
 
 <template>
@@ -90,10 +141,40 @@ onMounted(loadMore)
     </article>
   </section>
 
-  <p v-if="loadError" role="alert">{{ t('artwork.loadError') }}</p>
-  <button type="button" @click="loadMore" :disabled="isLoading || !hasMore">
-    {{ isLoading ? t('artwork.loading') : hasMore ? t('artwork.loadMore') : t('artwork.allLoaded') }}
-  </button>
+  <p v-if="isLoading" class="pagination-status" role="status">{{ t('artwork.loading') }}</p>
+  <div v-if="loadError" class="pagination-status" role="alert">
+    <p>{{ t('artwork.loadError') }}</p>
+    <button type="button" :disabled="isLoading" @click="loadPage(retryPage)">
+      {{ t('artwork.retry') }}
+    </button>
+  </div>
+
+  <p v-if="totalPages > 0" class="pagination-status" aria-live="polite">
+    {{ t('artwork.pageStatus', { page: currentPage, totalPages }) }}
+  </p>
+  <nav v-if="totalPages > 1" class="pagination" :aria-label="t('artwork.paginationLabel')">
+    <button type="button" :disabled="isLoading || currentPage === 1" @click="loadPage(currentPage - 1)">
+      {{ t('artwork.previousPage') }}
+    </button>
+    <template v-for="(page, index) in visiblePages" :key="`${page}-${index}`">
+      <span v-if="page === null" class="pagination-ellipsis" aria-hidden="true">…</span>
+      <button
+        v-else
+        type="button"
+        :aria-label="t('artwork.pageNumber', { page })"
+        :aria-current="page === currentPage ? 'page' : undefined"
+        :disabled="isLoading"
+        @click="loadPage(page)"
+      >{{ page }}</button>
+    </template>
+    <button
+      type="button"
+      :disabled="isLoading || currentPage === totalPages"
+      @click="loadPage(currentPage + 1)"
+    >
+      {{ t('artwork.nextPage') }}
+    </button>
+  </nav>
 
   <div v-if="selectedArtwork" class="modal-backdrop" @click.self="selectedArtwork = null">
     <div class="modal" role="dialog" aria-modal="true" aria-labelledby="artwork-audio-title">
@@ -336,6 +417,54 @@ onMounted(loadMore)
 
   #artwork :deep(.cardDescBtn:hover) {
     background: var(--smk-surface);
+  }
+
+  .pagination-status {
+    width: min(calc(100% - 32px), 1600px);
+    margin: 0 auto 16px;
+    color: var(--smk-muted);
+    text-align: center;
+  }
+
+  .pagination-status p {
+    margin: 0 0 8px;
+  }
+
+  .pagination {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: min(calc(100% - 32px), 1600px);
+    margin: 0 auto 24px;
+  }
+
+  .pagination button {
+    min-width: 40px;
+    min-height: 40px;
+    padding: 8px 12px;
+    border: 1px solid var(--smk-line);
+    border-radius: 0;
+    background: var(--smk-paper);
+    color: var(--smk-ink);
+    cursor: pointer;
+  }
+
+  .pagination button[aria-current="page"] {
+    border-color: var(--smk-ink);
+    background: var(--smk-ink);
+    color: var(--smk-paper);
+  }
+
+  .pagination button:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+
+  .pagination-ellipsis {
+    padding: 0 4px;
+    color: var(--smk-muted);
   }
 
   .modal-backdrop {

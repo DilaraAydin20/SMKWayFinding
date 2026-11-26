@@ -22,9 +22,13 @@ export default {
     viewOnSmk: 'Visa verket på SMK',
     viewDescription: 'Läs eller lyssna på beskrivningen',
     loadError: 'Det gick inte att läsa in konstverken. Försök igen.',
-    loadMore: 'Läs in fler',
     loading: 'Läser in…',
-    allLoaded: 'Alla konstverk har lästs in',
+    retry: 'Försök igen',
+    paginationLabel: 'Konstverkssidor',
+    previousPage: 'Föregående',
+    nextPage: 'Nästa',
+    pageNumber: 'Sida {page}',
+    pageStatus: 'Sida {page} av {totalPages}',
     close: 'Stäng'
   },
   audio: {
@@ -73,6 +77,7 @@ export default {
     closeScanner: 'Stäng skannern',
     retry: 'Försök igen',
     loadError: 'Det gick inte att läsa in OpenStreetMap-data.',
+    retryingAutomatically: 'Nytt försök görs automatiskt…',
     currentLocation: 'Nuvarande plats: {room}',
     scanToSetLocation: 'Skanna en QR-kod i ett rum för att ange din plats.',
     museumInfo: 'Museumsinformation:',

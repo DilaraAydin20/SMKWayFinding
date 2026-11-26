@@ -2,33 +2,70 @@ import noImage from '../images/noimage.png'
 
 const apiUrl = 'https://api.smk.dk/api/v1/art/search/';
 
-export const rows = 1000;
+export const artworksPerPage = 40;
 
-export async function getArtworks(offset = 0) {
+async function searchArtworks(offset, limit, onDisplay) {
     try {
-        const response = await fetch(
-            `${apiUrl}?keys=*&offset=${offset}&rows=${rows}`
-        );
+        const params = new URLSearchParams({
+            keys: '*',
+            offset: String(offset),
+            rows: String(limit),
+            filters: `on_display:${onDisplay}`
+        });
+        const response = await fetch(`${apiUrl}?${params}`);
         if (!response.ok) {
             throw new Error(`SMK API request failed with status ${response.status}`);
         }
 
         const data = await response.json();
-        return data.items.map(artwork => ({
-            object_number: artwork?.object_number ?? '',
-            titles: artwork?.titles ?? [],
-            artist: artwork?.artist ?? [],
-            production_date: artwork?.production_date ?? [],
-            frontend_url: artwork?.frontend_url ?? '',
-            on_display: artwork?.on_display ?? null,
-            image_thumbnail: artwork?.image_thumbnail ?? noImage,
-            image_orientation: artwork?.image_orientation ?? ''
-        }));
+        if (!Array.isArray(data.items) || !Number.isInteger(data.found)) {
+            throw new Error('SMK API returned an invalid artwork search response');
+        }
 
-    } catch(err){
-        console.error('Error while retreiving artworks :', err);
-        throw err;
+        return {
+            found: data.found,
+            items: data.items.map(artwork => ({
+                object_number: artwork?.object_number ?? '',
+                titles: artwork?.titles ?? [],
+                artist: artwork?.artist ?? [],
+                production_date: artwork?.production_date ?? [],
+                frontend_url: artwork?.frontend_url ?? '',
+                on_display: artwork?.on_display ?? null,
+                image_thumbnail: artwork?.image_thumbnail ?? noImage,
+                image_orientation: artwork?.image_orientation ?? ''
+            }))
+        };
+
+    } catch (error) {
+        console.error('Error while retrieving artworks:', error);
+        throw error;
     }
+}
+
+let artworkCountsRequest
+
+export function getArtworkCounts() {
+    if (!artworkCountsRequest) {
+        artworkCountsRequest = Promise.all([
+            searchArtworks(0, 0, true),
+            searchArtworks(0, 0, false)
+        ])
+            .then(([onDisplay, notOnDisplay]) => ({
+                onDisplay: onDisplay.found,
+                notOnDisplay: notOnDisplay.found
+            }))
+            .catch(error => {
+                artworkCountsRequest = null
+                throw error
+            })
+    }
+
+    return artworkCountsRequest
+}
+
+export async function getArtworks(offset, onDisplay, limit = artworksPerPage) {
+    const result = await searchArtworks(offset, limit, onDisplay)
+    return result.items
 }
 
 const artworkDescriptionCache = new Map()
