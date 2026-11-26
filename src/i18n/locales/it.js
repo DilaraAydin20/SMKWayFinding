@@ -22,9 +22,13 @@ export default {
     viewOnSmk: 'Visualizza l’opera su SMK',
     viewDescription: 'Leggi o ascolta la descrizione',
     loadError: 'Impossibile caricare le opere. Riprova.',
-    loadMore: 'Carica altre opere',
     loading: 'Caricamento…',
-    allLoaded: 'Tutte le opere sono state caricate',
+    retry: 'Riprova',
+    paginationLabel: 'Pagine delle opere',
+    previousPage: 'Precedente',
+    nextPage: 'Successiva',
+    pageNumber: 'Pagina {page}',
+    pageStatus: 'Pagina {page} di {totalPages}',
     close: 'Chiudi'
   },
   audio: {
@@ -73,6 +77,7 @@ export default {
     closeScanner: 'Chiudi lettore',
     retry: 'Riprova',
     loadError: 'Impossibile caricare i dati OpenStreetMap.',
+    retryingAutomatically: 'Nuovo tentativo automatico…',
     currentLocation: 'Posizione attuale: {room}',
     scanToSetLocation: 'Scansiona il codice QR di una sala per impostare la posizione.',
     museumInfo: 'Informazioni sul museo:',

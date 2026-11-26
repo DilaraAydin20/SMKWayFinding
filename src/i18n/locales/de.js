@@ -22,9 +22,13 @@ export default {
     viewOnSmk: 'Werk beim SMK ansehen',
     viewDescription: 'Beschreibung lesen oder anhören',
     loadError: 'Die Kunstwerke konnten nicht geladen werden. Bitte versuchen Sie es erneut.',
-    loadMore: 'Weitere laden',
     loading: 'Wird geladen…',
-    allLoaded: 'Alle Kunstwerke wurden geladen',
+    retry: 'Erneut versuchen',
+    paginationLabel: 'Kunstwerkseiten',
+    previousPage: 'Zurück',
+    nextPage: 'Weiter',
+    pageNumber: 'Seite {page}',
+    pageStatus: 'Seite {page} von {totalPages}',
     close: 'Schließen'
   },
   audio: {
@@ -73,6 +77,7 @@ export default {
     closeScanner: 'Scanner schließen',
     retry: 'Erneut versuchen',
     loadError: 'OpenStreetMap-Daten konnten nicht geladen werden.',
+    retryingAutomatically: 'Wird automatisch erneut versucht…',
     currentLocation: 'Aktueller Standort: {room}',
     scanToSetLocation: 'Scannen Sie einen Raum-QR-Code, um Ihren Standort festzulegen.',
     museumInfo: 'Museumsinformationen:',

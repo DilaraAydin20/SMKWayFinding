@@ -39,7 +39,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useMuseumwayfinding } from '../stores/museumwayfinding.js'
+import { useMuseumwayfinding } from '../store/museumWayfinding.js'
 
 const store = useMuseumwayfinding()
 const { t } = useI18n()

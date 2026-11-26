@@ -161,9 +161,9 @@ Rendering: Uses Leaflet.js to render actual OSM way coordinates as polygons on t
     </div>
 
     <!-- Error Message -->
-    <div v-if="errorMessage" class="error-message">
+    <div v-if="errorMessage" class="error-message" role="status">
       <p>{{ t('map.loadError') }}</p>
-      <button @click="loadOSMData" class="btn btn-secondary">{{ t('map.retry') }}</button>
+      <p>{{ t('map.retryingAutomatically') }}</p>
     </div>
 
     <!-- wayfinding Info Panel -->
@@ -203,7 +203,7 @@ const xIconPath = 'M6.25 6.3a.75.75 0 011.06 0L12 10.94l4.69-4.68a.75.75 0 011.0
 import { createApp, defineComponent, h, ref, onMounted, computed, onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import QRScanner from './QRScanner.vue'
-import { useMuseumwayfinding } from '../stores/museumwayfinding.js'
+import { useMuseumwayfinding } from '../store/museumWayfinding.js'
 import stairsIconUrl from '../assets/icons/stairs.svg'
 import elevatorIconUrl from '../assets/icons/elevator.svg'
 import { i18n } from '../i18n/index.js'
@@ -247,9 +247,15 @@ const levelOptions = computed(() => [
 ])
 let osmMapInstance = null
 const isMapLoaded = ref(false)
-const isLoading = ref(true)
+const isLoading = ref(false)
 const errorMessage = ref(null)
 let infoControlApp = null
+const initialRetryDelayMs = 2000
+const maximumRetryDelayMs = 30000
+let retryDelayMs = initialRetryDelayMs
+let retryTimer = null
+let mapComponentMounted = false
+let activeRequestController = null
 
 // Drawer � single boolean, no animation-phase tracking needed
 const drawerOpen = ref(false)
@@ -722,12 +728,18 @@ function resetView() {
 
 // Initialize when component is mounted
 onMounted(() => {
+  mapComponentMounted = true
   loadOSMData()
 })
 
 async function loadOSMData() {
+  if (!mapComponentMounted || isLoading.value) return
+
   isLoading.value = true
   errorMessage.value = null
+  const controller = new AbortController()
+  activeRequestController = controller
+  const requestTimeout = setTimeout(() => controller.abort(), 35000)
   
   try {
     // Check if Leaflet is available
@@ -776,21 +788,43 @@ if (osmMapInstance?.map) {
     // Floor buttons are displayed over the map.
 
     // Query Overpass API for indoor mapping data around SMK
-    await fetchIndoorData()
+    await fetchIndoorData(controller.signal)
+    if (!mapComponentMounted) return
+
     pathfindingRouteLayer = L.layerGroup().addTo(osmMapInstance.map)
     
     isMapLoaded.value = true
+    retryDelayMs = initialRetryDelayMs
   }
   catch (error) {
-    console.error('Error loading OpenStreetMap data:', error)
-    errorMessage.value = error.message
+    if (!mapComponentMounted) return
+
+    const loadError = controller.signal.aborted
+      ? new Error('Overpass API request timed out')
+      : error
+    console.error('Error loading OpenStreetMap data:', loadError)
+    errorMessage.value = loadError.message
+    scheduleRetry()
   }
   finally {
-    isLoading.value = false
+    clearTimeout(requestTimeout)
+    if (activeRequestController === controller) activeRequestController = null
+    if (mapComponentMounted) isLoading.value = false
   }
 }
 
-async function fetchIndoorData() {
+function scheduleRetry() {
+  if (!mapComponentMounted || retryTimer !== null) return
+
+  const delay = retryDelayMs
+  retryDelayMs = Math.min(retryDelayMs * 2, maximumRetryDelayMs)
+  retryTimer = setTimeout(() => {
+    retryTimer = null
+    loadOSMData()
+  }, delay)
+}
+
+async function fetchIndoorData(signal) {
   // Overpass API query for indoor mapping around SMK (55.6887, 12.5783)
   // This queries all ways with indoor tags in the area
   const overpassQuery = `
@@ -855,6 +889,7 @@ async function fetchIndoorData() {
   const response = await fetch('https://overpass-api.de/api/interpreter', {
     method: 'POST',
     body: overpassQuery,
+    signal,
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded'
     }
@@ -1039,6 +1074,13 @@ function updateBuildingDisplayForLevel(level) {
 
 // Cleanup when component is unmounted
 onUnmounted(() => {
+  mapComponentMounted = false
+  if (retryTimer !== null) {
+    clearTimeout(retryTimer)
+    retryTimer = null
+  }
+  activeRequestController?.abort()
+
   if (osmMapInstance && osmMapInstance.map) {
     try {
       osmMapInstance.map.remove();
