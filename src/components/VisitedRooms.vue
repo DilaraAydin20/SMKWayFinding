@@ -6,7 +6,7 @@
           <circle cx="12" cy="12" r="10"></circle>
           <polyline points="12 6 12 12 16 14"></polyline>
         </svg>
-        Visited Rooms
+        {{ t('app.visitedRooms') }}
         <span class="room-count">{{ rooms.length }}</span>
       </h3>
       <svg class="expand-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -28,8 +28,8 @@
             <path d="M2 17l10 5 10-5"></path>
             <path d="M2 12l10 5 10-5"></path>
           </svg>
-          <p>No rooms visited yet</p>
-          <span class="empty-hint">Scan a QR code to start exploring</span>
+          <p>{{ t('app.noRoomsVisited') }}</p>
+          <span class="empty-hint">{{ t('qr.instruction') }}</span>
         </div>
       </div>
     </Transition>
@@ -38,15 +38,18 @@
 
 <script setup>
 import { ref, computed } from 'vue'
-import { useMuseumwayfinding } from '../stores/museumwayfinding.js'
+import { useI18n } from 'vue-i18n'
+import { useMuseumwayfinding } from '../store/museumWayfinding.js'
 
 const store = useMuseumwayfinding()
+const { t } = useI18n()
 const isExpanded = ref(true)
 
 const rooms = computed(() => store.visitedRooms)
 
 function getRoomName(roomId) {
-  return store.getCurrentRoomName(roomId) || 'Unknown Room'
+  const roomName = store.getCurrentRoomName(roomId)
+  return roomName === 'Unknown Room' ? t('map.unknownRoom') : roomName
 }
 
 function toggleExpand() {

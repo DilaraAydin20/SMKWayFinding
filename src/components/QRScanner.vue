@@ -3,14 +3,14 @@
   <div class="qr-scanner">
     <!-- Initial State -- waiting for user to start scan (no transition needed) -->
     <div v-if="!scanning" class="scanner-controls">
-      <button @click="startScanning" :disabled="isStarting" class="btn btn-primary">Start Scanning</button>
-      <p>Scan a QR code in any room or artwork display.</p>
+      <button @click="startScanning" :disabled="isStarting" class="btn btn-primary">{{ t('qr.start') }}</button>
+      <p>{{ t('qr.instruction') }}</p>
     </div>
 
     <!-- Active State -- camera is running (no transition needed) -->
     <div v-else class="scanning-area">
         <!-- Status indicator (permission -> stream ready) -->
-        <div :class="['status-badge', statusClass]">{{ statusText }}</div>
+        <div :class="['status-badge', statusClass]" role="status" aria-live="polite">{{ statusText }}</div>
 
         <!-- Camera preview -->
         <video ref="videoElement" autoplay playsinline muted class="scanner-video"></video>
@@ -20,34 +20,33 @@
 
         <!-- Controls -->
         <div class="scanning-controls">
-          <p v-if="!scanComplete && qrLibraryLoaded">{{ statusText === 'Camera ready' ? 'Point camera at a QR code...' : '' }}</p>
-          <button @click.stop="stopScanning" class="btn btn-secondary">Stop</button>
+          <p v-if="!scanComplete && qrLibraryLoaded">{{ statusKey === 'cameraReady' ? t('qr.pointCamera') : '' }}</p>
+          <button @click.stop="stopScanning" class="btn btn-secondary">{{ t('qr.stop') }}</button>
         </div>
-
-        <!-- Error display -->
-        <Transition name="fade" mode="out-in">
-          <div v-if="scanError" key="error" class="scan-error">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#dc3545" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="12" cy="12" r="10"/>
-              <path :d="warningCirclePath"/>
-            </svg>
-            {{ scanError }}
-          </div>
-        </Transition>
 
         <!-- Success display -->
         <Transition name="fade" mode="out-in">
-          <div v-if="scanComplete && !scanError" key="success" class="scan-result">
-            <h3>Scan Result</h3>
+          <div v-if="scanComplete && !scanErrorKey" key="success" class="scan-result" role="status">
+            <h3>{{ t('qr.scanResult') }}</h3>
             <pre>{{ scannedData }}</pre>
             <p :class="{ success: store.isInRoom }">{{ scanResultText }}</p>
           </div>
         </Transition>
       </div>
 
+    <Transition name="fade" mode="out-in">
+      <div v-if="scanErrorKey" key="error" class="scan-error" role="alert">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#dc3545" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/>
+          <path :d="warningCirclePath"/>
+        </svg>
+        {{ t(scanErrorKey, scanErrorParams) }}
+      </div>
+    </Transition>
+
     <!-- QR Library loading indicator -->
     <Transition name="fade">
-      <div v-if="!qrLibraryLoaded && !scanError" class="library-loading">Loading QR decoder...</div>
+      <div v-if="!qrLibraryLoaded && !scanErrorKey" class="library-loading" role="status">{{ t('qr.loadingDecoder') }}</div>
     </Transition>
   </div>
 </template>
@@ -56,10 +55,12 @@
 const warningCirclePath = 'M12 8v4m0 4h.01'
 // Warning circle background: <circle cx=\x2712\x27 cy=\x2712\x27 r=\x2710\x27/>
 import { ref, computed, onUnmounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import jsQR from 'jsqr';
-import { useMuseumwayfinding } from '../stores/museumwayfinding.js'
+import { useMuseumwayfinding } from '../store/museumWayfinding.js'
 
 const store = useMuseumwayfinding()
+const { t } = useI18n()
 
 // Local state
 const scanning = ref(false)
@@ -72,26 +73,29 @@ let animFrameId = null            // requestAnimationFrame ID for scan loop
 // Scan status -- tracks the pipeline: waiting -> requesting-permission -> loading-library -> ready -> scanning -> complete/error
 const qrLibraryLoaded = ref(false)
 const scannedData = ref(null)
-const scanError = ref(null)
+const scanErrorKey = ref('')
+const scanErrorParams = ref({})
 const scanComplete = ref(false)   // QR was successfully decoded and processed
 
 // Status badge text + color class (driven by pipeline state, not animation phases)
 function setStatus(text, cls = '') {
-  statusText.value = text
+  statusKey.value = text
   statusClass.value = cls
 }
 
-const statusText = ref('')
+const statusKey = ref('')
+const statusText = computed(() => statusKey.value ? t(`qr.status.${statusKey.value}`) : '')
 const statusClass = ref('') // 'status-loading' | 'status-error' | 'status-success'
 
 // Computed result message
-const scanResultText = computed(() => store.isInRoom ? '[OK] Location set!' : '')
+const scanResultText = computed(() => store.isInRoom ? t('qr.locationSet') : '')
 
 function startScanning() {
   if (isStarting.value || scanning.value) return
 
   isStarting.value = true
-  scanError.value = null
+  scanErrorKey.value = ''
+  scanErrorParams.value = {}
   scannedData.value = null
   scanComplete.value = false
 
@@ -100,14 +104,14 @@ function startScanning() {
       // Set scanning FIRST so the <video> element renders in the DOM.
       scanning.value = true
 
-      setStatus('Requesting camera...', 'status-loading')
+      setStatus('requestingCamera', 'status-loading')
 
       // Step 1 -- Request permission (triggers browser dialog).
       stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: 'environment', width: { ideal: 640 }, height: { ideal: 480 } }
       })
 
-      setStatus('Camera granted, loading decoder...', 'status-loading')
+      setStatus('loadingDecoder', 'status-loading')
 
       // Step 2 -- Wait for Vue to render the <video> element inside drawer panel.
       await waitForVideoElement()
@@ -117,7 +121,7 @@ function startScanning() {
       videoElement.value.srcObject = stream
 
       // Step 3 -- Wait for metadata then play (browsers require this sequence).
-      setStatus('Starting camera...', 'status-loading')
+      setStatus('startingCamera', 'status-loading')
       const metaLoaded = waitForVideoMetadata(videoElement.value)
       await Promise.race([metaLoaded, timeout(2000)])
 
@@ -125,7 +129,7 @@ function startScanning() {
         console.warn('[QRScanner] Autoplay blocked -- stream active but video may not play.')
       })
 
-      setStatus('Camera ready', 'status-success')
+      setStatus('cameraReady', 'status-success')
 
       // Step 4 -- Load jsQR (lazy, once per session).
       if (!qrLibraryLoaded.value) await loadJsQRLibrary()
@@ -136,14 +140,15 @@ function startScanning() {
       console.error('[QRScanner] Start failed:', err.message || err)
       stopScanning()
       if (err.name === 'NotAllowedError') {
-        setStatus('Permission denied', 'status-error')
-        scanError.value = 'Camera access was blocked. Please allow camera permissions and try again.'
+        setStatus('permissionDenied', 'status-error')
+        scanErrorKey.value = 'qr.errors.cameraPermission'
       } else if (err.name === 'NotFoundError' || err.message?.includes('not found')) {
-        setStatus('No camera', 'status-error')
-        scanError.value = 'No camera device detected on this system.'
+        setStatus('noCamera', 'status-error')
+        scanErrorKey.value = 'qr.errors.noCamera'
       } else {
-        setStatus('Error', 'status-error')
-        scanError.value = `Camera error: ${err.message || err}`
+        setStatus('error', 'status-error')
+        scanErrorKey.value = 'qr.errors.camera'
+        scanErrorParams.value = { error: err.message || err }
       }
     } finally {
       isStarting.value = false
@@ -180,7 +185,7 @@ async function loadJsQRLibrary() {
     qrLibraryLoaded.value = true
   } catch (err) {
     console.error('[QRScanner] Failed to load jsQR:', err.message || err)
-    scanError.value = 'QR decoder could not be loaded -- check your network connection.'
+    scanErrorKey.value = 'qr.errors.decoder'
     throw err
   }
 }
@@ -498,6 +503,137 @@ h2 {
     max-width: 480px;
     margin-left: auto;
     margin-right: auto;
+  }
+}
+
+.qr-scanner {
+  height: auto;
+  min-height: 0;
+  color: var(--smk-ink);
+}
+
+.scanner-controls {
+  padding: 20px 8px;
+}
+
+.scanner-controls p {
+  max-width: 28rem;
+  color: var(--smk-muted);
+  line-height: 1.55;
+}
+
+.scanner-controls .btn,
+.scanning-controls .btn {
+  min-height: 48px;
+  padding: 12px 20px;
+  border: 1px solid var(--smk-ink);
+  border-radius: 0;
+  font-weight: 600;
+}
+
+.scanner-controls .btn-primary {
+  background: var(--smk-ink);
+  color: var(--smk-paper);
+}
+
+.scanner-controls .btn-primary:hover:not(:disabled) {
+  background: #333;
+}
+
+.scanning-controls .btn-secondary {
+  background: var(--smk-paper);
+  color: var(--smk-ink);
+}
+
+.scanning-controls .btn-secondary:hover:not(:disabled) {
+  background: var(--smk-surface);
+}
+
+.scanning-area {
+  gap: 14px;
+}
+
+.status-badge {
+  justify-content: center;
+  min-height: 40px;
+  padding: 8px 14px;
+  border: 1px solid var(--smk-line);
+  border-radius: 0;
+  background: var(--smk-surface);
+  color: var(--smk-ink);
+  font-weight: 600;
+}
+
+.status-loading {
+  border-color: #9a9a94;
+  background: #f0f0ed;
+  color: var(--smk-ink);
+}
+
+.status-error {
+  border-color: #9a9a94;
+  background: #f0f0ed;
+  color: #7a1717;
+}
+
+.status-success {
+  border-color: #8a8a85;
+  background: #e8e8e5;
+  color: var(--smk-ink);
+}
+
+.scanner-video {
+  max-height: min(52dvh, 480px);
+  border: 1px solid var(--smk-line);
+  border-radius: 0;
+  background: #111;
+}
+
+.scanning-controls {
+  gap: 12px;
+}
+
+.scan-error,
+.scan-result {
+  padding: 16px;
+  border: 1px solid var(--smk-line);
+  border-radius: 0;
+  background: var(--smk-surface);
+  color: var(--smk-ink);
+  line-height: 1.55;
+}
+
+.scan-error {
+  border-left: 3px solid #7a1717;
+}
+
+.scan-result h3 {
+  color: var(--smk-ink);
+  font-weight: 600;
+}
+
+.scan-result pre {
+  overflow: auto;
+  border: 1px solid var(--smk-line);
+  border-radius: 0;
+  background: var(--smk-paper);
+  color: var(--smk-ink);
+  font-family: "Hill SMK", Arial, sans-serif;
+}
+
+.scan-result .success {
+  color: var(--smk-ink);
+}
+
+.library-loading {
+  color: var(--smk-muted);
+}
+
+@media (min-width: 768px) {
+  .scanner-video,
+  .scan-error,
+  .scan-result {
+    max-width: 100%;
   }
 }
 </style>

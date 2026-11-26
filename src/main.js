@@ -10,12 +10,16 @@ import './styles/mobile.css'
 
 // Import our components and stores
 import App from './App.vue'
+import { i18n } from './i18n/index.js'
+import router from './router/index.js'
 
 // Create Vue app with Pinia
 const app = createApp(App)
 
 // Use Pinia for state management
 app.use(createPinia())
+app.use(i18n)
+app.use(router)
 
 // Mount the application
 app.mount('#app')

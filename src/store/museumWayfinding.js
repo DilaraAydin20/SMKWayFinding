@@ -119,12 +119,16 @@ export const useMuseumwayfinding = defineStore('museumwayfinding', {
       return room ? room.name : 'Unknown Room';
     },
 
-    selectedArtwork: (state) => {
+     selectedArtwork: (state) => {
       if (!state.selectedArtworkId) return null;
 
-      return state.artworks.find(artwork => artwork.id === state.selectedArtworkId) || {
+      const local = state.artworks.find(artwork => artwork.id === state.selectedArtworkId);
+      if (local) return local;
+
+      // Ukendt lokalt, så behandl koden som et SMK-værknummer (fx KMS1)
+      return {
         id: state.selectedArtworkId,
-        name: state.selectedArtworkId.replace(/[_-]+/g, ' ')
+        object_number: state.selectedArtworkId
       };
     }
   }

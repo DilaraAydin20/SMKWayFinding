@@ -33,6 +33,8 @@ backend/
 - **Multi-Level wayfinding** - Filter by floor: Basement (B1), Ground (G), First Floor, Second Floor.
 - **QR Code Scanner** - Open the scanner via the FAB button (bottom-right). Scan `room_*` or `artwork_*` QR codes to set your current location or destination.
 - **Artwork Text-to-Speech** - Listen to artwork descriptions in Danish, English, German, French, Swedish, or Italian. The ElevenLabs key stays on the backend.
+- **Multilingual interface** - Choose Danish, English, German, French, Swedish, or Italian; the selection is remembered in the browser and shared by the interface, artwork descriptions, and speech.
+- **Artwork description translations** - SMK descriptions are used when available. Otherwise, the backend translates the Danish text with DeepL and caches successful translations in memory. If translation is unavailable, the Danish original is shown with a notice.
 - **Route Guidance** - After setting a destination, step-by-step wayfinding is displayed in the sidebar panel.
 - **Visit History** - Tracks all rooms you've scanned into during the session.
 
@@ -54,7 +56,16 @@ npm run dev
 
 The onboarding command stores `ELEVENLABS_API_KEY` in the ignored `.env.local` file. Do not expose it through a `VITE_` variable or commit it. The development command runs Vite and the Express backend; open http://localhost:3000.
 
-For production, build the frontend with `npm run build`, set `ELEVENLABS_API_KEY` in the server's environment, and run `npm start`. The Express server serves the built frontend and the `/api/tts` endpoint.
+To enable artwork-description translations in development, add the DeepL key to the ignored `.env.local` file:
+
+```env
+DEEPL_API_KEY=your-deepl-api-key
+DEEPL_API_URL=https://api-free.deepl.com/v2/translate
+```
+
+Keep both keys on the backend; do not use `VITE_` variables or commit secrets. If `DEEPL_API_KEY` is not configured, the app continues to show the Danish original and an unavailable-translation notice.
+
+For production, build the frontend with `npm run build`, set `ELEVENLABS_API_KEY` and (optionally) `DEEPL_API_KEY` in the server's environment, and run `npm start`. The Express server serves the built frontend and the `/api/tts` and `/api/translate` endpoints. Use `https://api.deepl.com/v2/translate` for a DeepL Pro account.
 
 ## QR Code Format
 
