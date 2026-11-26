@@ -16,6 +16,7 @@ export async function getArtworks(offset = 0) {
         const data = await response.json();
         return data.items.map(artwork => ({
             object_number: artwork?.object_number ?? '',
+            hasDescription: false,
             titles: artwork?.titles ?? [],
             artist: artwork?.artist ?? [],
             production_date: artwork?.production_date ?? [],
@@ -129,4 +130,9 @@ async function fetchArtworkText(objectNumber, language) {
         console.warn('Artwork description translation is unavailable:', error)
         return { text: danishText, translated: false, fallback: true, error: true }
     }
+}
+
+export async function hasArtworkDescription(objectNumber) {
+    const artwork = await fetchArtwork(objectNumber, 'da')
+    return Boolean(getDescription(artwork))
 }

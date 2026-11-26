@@ -1,7 +1,7 @@
 <script setup>
 import { onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { getArtworks, rows } from '../data/smk-api.js'
+import { getArtworks, hasArtworkDescription, rows } from '../data/smk-api.js'
 import ArtworkAudioGuide from './ArtworkAudioGuide.vue'
 import noImage from '../images/noimage.png'
 
@@ -63,7 +63,8 @@ onMounted(loadMore)
   </section>
 
   <section id="artwork" :aria-label="t('artwork.ariaLabel')">
-    <article v-for="(artwork, index) in artworks" :key="artwork.object_number || index" class="card">
+    <article v-for="(artwork, index) in artworks" :key="artwork.object_number || index" class="card"> 
+
       <img
         class="cardImage"
         :src="artwork.image_thumbnail || noImage"
@@ -84,9 +85,14 @@ onMounted(loadMore)
         target="_blank"
         rel="noopener noreferrer"
       >{{ t('artwork.viewOnSmk') }}</a>
-      <button class="cardDescBtn" type="button" @click="selectedArtwork = artwork">
-        {{ t('artwork.viewDescription') }}
-      </button>
+    <button
+  v-if="artwork.hasDescription"
+  class="cardDescBtn"
+  type="button"
+  @click="selectedArtwork = artwork"
+>
+  {{ t('artwork.viewDescription') }}
+</button>
     </article>
   </section>
 
