@@ -1,5 +1,7 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
+import { getArtworkText } from '../data/smk-api.js'
 
 const props = defineProps({
   artwork: {
@@ -8,54 +10,65 @@ const props = defineProps({
   }
 })
 
-const languages = [
-  { code: 'da', name: 'Dansk' },
-  { code: 'en', name: 'English' },
-  { code: 'de', name: 'Deutsch' },
-  { code: 'fr', name: 'Français' },
-  { code: 'sv', name: 'Svenska' },
-  { code: 'it', name: 'Italiano' }
-]
-
-const language = ref('da')
+const { locale, t } = useI18n()
 const description = ref('')
+const translationError = ref(false)
 const audioUrl = ref(null)
 const audioElement = ref(null)
 const isLoading = ref(false)
+const isDescriptionLoading = ref(false)
 const errorMessage = ref('')
 let requestController = null
+let descriptionRequestId = 0
 
-const artworkName = computed(() => props.artwork?.name || props.artwork?.title || props.artwork?.id || '')
-
-function getArtworkDescription() {
-  const descriptions = props.artwork?.descriptions
-  const descriptionValue = props.artwork?.description
-  const localizedDescription = descriptions?.[language.value] ??
-    (typeof descriptionValue === 'object' ? descriptionValue?.[language.value] : descriptionValue)
-
-  return typeof localizedDescription === 'string' ? localizedDescription : ''
-}
+const artworkName = computed(
+  () => props.artwork?.titles?.[0]?.title || props.artwork?.object_number || ''
+)
 
 function clearAudio() {
-  if (audioUrl.value) {
-    URL.revokeObjectURL(audioUrl.value)
-    audioUrl.value = null
-  }
+  requestController?.abort()
+  requestController = null
+  if (audioUrl.value) URL.revokeObjectURL(audioUrl.value)
+  audioUrl.value = null
 }
 
 watch(
-  [() => props.artwork?.id, language],
-  () => {
-    description.value = getArtworkDescription()
+  [() => props.artwork, locale],
+  async () => {
+    const requestId = ++descriptionRequestId
     clearAudio()
     errorMessage.value = ''
+    description.value = ''
+    translationError.value = false
+
+    const nr = props.artwork?.object_number
+    if (!nr) {
+      isDescriptionLoading.value = false
+      return
+    }
+
+    isDescriptionLoading.value = true
+    try {
+      const result = await getArtworkText(nr, locale.value)
+      if (requestId !== descriptionRequestId) return
+      description.value = result.text
+      translationError.value = result.fallback
+      if (!result.text) {
+        errorMessage.value = t('audio.noDescription')
+      }
+    } catch (err) {
+      if (requestId !== descriptionRequestId) return
+      console.error('Could not load artwork description:', err)
+      errorMessage.value = t('audio.loadError')
+    } finally {
+      if (requestId === descriptionRequestId) isDescriptionLoading.value = false
+    }
   },
   { immediate: true }
 )
 
 watch(description, () => {
   clearAudio()
-  errorMessage.value = ''
 })
 
 async function generateSpeech() {
@@ -72,14 +85,13 @@ async function generateSpeech() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         text: description.value.trim(),
-        language: language.value
+        language: locale.value
       }),
       signal: requestController.signal
     })
 
     if (!response.ok) {
-      const result = await response.json().catch(() => ({}))
-      throw new Error(result.error || `Speech generation failed (${response.status}).`)
+      throw new Error(`Speech generation failed (${response.status}).`)
     }
 
     audioUrl.value = URL.createObjectURL(await response.blob())
@@ -88,11 +100,11 @@ async function generateSpeech() {
     try {
       await audioElement.value?.play()
     } catch {
-      errorMessage.value = 'Audio is ready. Press Play in the audio controls to listen.'
+      errorMessage.value = t('audio.audioReady')
     }
   } catch (error) {
     if (error.name !== 'AbortError') {
-      errorMessage.value = error.message || 'Speech generation failed. Please try again.'
+      errorMessage.value = t('audio.speechError')
     }
   } finally {
     isLoading.value = false
@@ -108,40 +120,37 @@ onBeforeUnmount(() => {
 
 <template>
   <section class="artwork-audio-panel" aria-labelledby="artwork-audio-title">
-    <h3 id="artwork-audio-title">Listen to artwork</h3>
+    <h3 id="artwork-audio-title">{{ t('audio.title') }}</h3>
 
-    <p v-if="!artwork">Scan an artwork QR code to listen to its description.</p>
+    <p v-if="!artwork">{{ t('audio.scanPrompt') }}</p>
     <template v-else>
       <h4>{{ artworkName }}</h4>
 
-      <label for="artwork-audio-language">Description language</label>
-      <select id="artwork-audio-language" v-model="language" :disabled="isLoading">
-        <option v-for="option in languages" :key="option.code" :value="option.code">
-          {{ option.name }}
-        </option>
-      </select>
-
-      <label for="artwork-audio-description">Artwork description</label>
+      <label for="artwork-audio-description">{{ t('audio.description') }}</label>
       <textarea
         id="artwork-audio-description"
         v-model="description"
-        :disabled="isLoading"
+        :disabled="isLoading || isDescriptionLoading"
         maxlength="5000"
         rows="5"
-        :placeholder="`Enter the ${languages.find(option => option.code === language)?.name} description`"
+        :placeholder="t('audio.placeholder')"
       ></textarea>
+      <p v-if="isDescriptionLoading" role="status">{{ t('audio.loading') }}</p>
+      <p v-if="translationError" class="audio-error" role="alert">
+        {{ t('audio.translationError') }}
+      </p>
 
       <button
         type="button"
         class="btn btn-primary"
-        :disabled="isLoading || !description.trim()"
+        :disabled="isLoading || isDescriptionLoading || !description.trim()"
         @click="generateSpeech"
       >
-        {{ isLoading ? 'Generating audio…' : 'Generate and play' }}
+        {{ isLoading ? t('audio.generatingAudio') : t('audio.generateAudio') }}
       </button>
 
       <audio v-if="audioUrl" ref="audioElement" :src="audioUrl" controls>
-        Your browser does not support audio playback.
+        {{ t('audio.browserAudio') }}
       </audio>
       <p v-if="errorMessage" class="audio-error" role="status">{{ errorMessage }}</p>
     </template>
@@ -150,26 +159,31 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .artwork-audio-panel {
-  margin-top: 20px;
-  padding: 15px;
-  background: white;
-  border-radius: 4px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  margin: 0;
+  padding: 20px;
+  border: 1px solid var(--smk-line);
+  background: var(--smk-paper);
 }
 
 .artwork-audio-panel h3 {
-  margin-top: 0;
-  color: #1a4d78;
+  margin: 0 0 12px;
+  font-size: 1.2rem;
+  font-weight: 600;
+  line-height: 1.25;
 }
 
 .artwork-audio-panel h4 {
+  margin: 0 0 16px;
   overflow-wrap: anywhere;
+  font-size: 1.05rem;
+  font-weight: 600;
 }
 
 .artwork-audio-panel label {
   display: block;
-  margin: 12px 0 5px;
+  margin: 16px 0 6px;
   font-weight: 600;
+  font-size: 0.9rem;
 }
 
 .artwork-audio-panel select,
@@ -177,19 +191,52 @@ onBeforeUnmount(() => {
 .artwork-audio-panel audio {
   box-sizing: border-box;
   width: 100%;
-  margin-bottom: 12px;
+  margin-bottom: 8px;
+}
+
+.artwork-audio-panel select {
+  padding: 10px 36px 10px 12px;
 }
 
 .artwork-audio-panel textarea {
+  min-height: 132px;
+  padding: 12px;
   resize: vertical;
   font: inherit;
+  line-height: 1.55;
 }
 
 .artwork-audio-panel button {
   width: 100%;
+  margin-top: 8px;
+  border: 1px solid var(--smk-ink);
+  border-radius: 0;
+  background: var(--smk-ink);
+  color: var(--smk-paper);
+  font-weight: 600;
+}
+
+.artwork-audio-panel button:hover:not(:disabled) {
+  background: #333;
+}
+
+.artwork-audio-panel audio {
+  display: block;
+  margin-top: 16px;
 }
 
 .audio-error {
-  color: #a12622;
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border-left: 3px solid var(--smk-ink);
+  background: var(--smk-surface);
+  color: var(--smk-ink);
+  line-height: 1.5;
+}
+
+@media (max-width: 480px) {
+  .artwork-audio-panel {
+    padding: 16px;
+  }
 }
 </style>
