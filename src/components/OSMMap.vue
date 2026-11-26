@@ -203,7 +203,7 @@ const xIconPath = 'M6.25 6.3a.75.75 0 011.06 0L12 10.94l4.69-4.68a.75.75 0 011.0
 import { createApp, defineComponent, h, ref, onMounted, computed, onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import QRScanner from './QRScanner.vue'
-import { useMuseumwayfinding } from '../stores/museumwayfinding.js'
+import { useMuseumwayfinding } from '../store/museumWayfinding.js'
 import stairsIconUrl from '../assets/icons/stairs.svg'
 import elevatorIconUrl from '../assets/icons/elevator.svg'
 import { i18n } from '../i18n/index.js'
