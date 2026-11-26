@@ -4,22 +4,6 @@ const apiUrl = 'https://api.smk.dk/api/v1/art/search/';
 
 export const rows = 1000;
 
-const artworksInfo = {
-    title:[],
-    author:[],
-    year:[],
-    description:[],
-    webUrl:[],
-    onDisplay:[],
-
-    image: {
-        orientation:[],
-        imageUrl:[]
-    },
-}
-
-
-
 export async function getArtworks(offset = 0) {
     try {
         const response = await fetch(
@@ -30,32 +14,16 @@ export async function getArtworks(offset = 0) {
         }
 
         const data = await response.json();
-        const newItemsStartIndex = artworksInfo.title.length;
-
-        data.items.forEach(artwork => { 
-            // Gather all needed data from API
-            const title = artwork.documentation?.[0]?.title || artwork?.titles[0]?.title || 'Undefined';
-            const author = artwork.documentation?.[0]?.author || artwork?.artist[0] || 'Undefined';
-            const year = artwork.documentation?.[0]?.year_of_publication ?? 'Undefined';
-            const webUrl = artwork?.frontend_url ?? 'Undefined';
-            const display = artwork?.on_display ?? 'Undefined';
-            
-            const thumbnail = artwork?.image_thumbnail ?? noImage;
-            const orientation = artwork?.image_orientation ?? 'Undefined';
-
-            // Push all data to local object
-            artworksInfo.title.push(title);
-            artworksInfo.author.push(author);
-            artworksInfo.year.push(year);
-            artworksInfo.webUrl.push(webUrl);
-            artworksInfo.onDisplay.push(display);
-
-            artworksInfo.image.imageUrl.push(thumbnail);
-            artworksInfo.image.orientation.push(orientation);
-            console.log(data);
-        })
-        renderArtwork(newItemsStartIndex);
-        return data.items.length;
+        return data.items.map(artwork => ({
+            object_number: artwork?.object_number ?? '',
+            titles: artwork?.titles ?? [],
+            artist: artwork?.artist ?? [],
+            production_date: artwork?.production_date ?? [],
+            frontend_url: artwork?.frontend_url ?? '',
+            on_display: artwork?.on_display ?? null,
+            image_thumbnail: artwork?.image_thumbnail ?? noImage,
+            image_orientation: artwork?.image_orientation ?? ''
+        }));
 
     } catch(err){
         console.error('Error while retreiving artworks :', err);
@@ -63,65 +31,102 @@ export async function getArtworks(offset = 0) {
     }
 }
 
-function renderArtwork(startIndex) {
-    // Container for artworks (parent)
-    const artworkList = document.getElementById('artwork');
-    if (!artworkList) {
-        throw new Error('Artwork list element was not found');
+const artworkDescriptionCache = new Map()
+const artworkDescriptionRequests = new Map()
+
+function normalizeText(text) {
+    return typeof text === 'string' ? text.replace(/\s+/g, ' ').trim() : ''
+}
+
+function getDescription(item) {
+    const label = item?.labels?.find(entry => entry.type === 'CATALOGUETEXT')
+        || item?.labels?.[0]
+    return normalizeText(label?.text)
+}
+
+async function fetchArtwork(objectNumber, language) {
+    const query = new URLSearchParams({ object_number: objectNumber, lang: language })
+    const response = await fetch(`https://api.smk.dk/api/v1/art/?${query}`)
+    if (!response.ok) {
+        throw new Error(`SMK API request failed with status ${response.status}`)
     }
 
-    for (let i = startIndex; i < artworksInfo.title.length; i++){
-        /* Create necessary elements for all cards */
-        const card = document.createElement('div');
-        const cardTitle = document.createElement('h3');
-        const cardAuthor = document.createElement('p');
-        const cardYear = document.createElement('p');
-        const cardDisplay = document.createElement('p');
-        const cardBtn = document.createElement('a');
+    return (await response.json()).items?.[0] ?? null
+}
 
-        const cardImage = document.createElement('img');
+export function getArtworkText(objectNumber, language) {
+    const cacheKey = `${objectNumber}:${language}`
+    if (artworkDescriptionCache.has(cacheKey)) {
+        return Promise.resolve(artworkDescriptionCache.get(cacheKey))
+    }
 
-        /* Insert data */
-        cardTitle.innerHTML = `${artworksInfo.title[i]}`;
-        cardAuthor.innerHTML = `${artworksInfo.author[i]}`;
-        cardYear.innerHTML = `${artworksInfo.year[i]}`;
+    if (artworkDescriptionRequests.has(cacheKey)) {
+        return artworkDescriptionRequests.get(cacheKey)
+    }
 
-        cardImage.src = artworksInfo.image?.imageUrl[i];
-        if (artworksInfo.onDisplay[i] === true){
-            cardDisplay.textContent = 'In museum';
-            cardDisplay.classList.add('cardDisplay--on-display');
-        } else if (artworksInfo.onDisplay[i] === false) {
-            cardDisplay.textContent = 'Not on Display';
-            cardDisplay.classList.add('cardDisplay--not-on-display');
+    const request = fetchArtworkText(objectNumber, language)
+        .finally(() => artworkDescriptionRequests.delete(cacheKey))
+    artworkDescriptionRequests.set(cacheKey, request)
+    return request
+}
+
+async function fetchArtworkText(objectNumber, language) {
+    const cacheKey = `${objectNumber}:${language}`
+    const requestedArtwork = await fetchArtwork(objectNumber, language)
+    const requestedLabel = requestedArtwork?.labels?.find(entry => entry.type === 'CATALOGUETEXT')
+        || requestedArtwork?.labels?.[0]
+    const requestedText = getDescription(requestedArtwork)
+    const requestedLanguage = requestedLabel?.language || requestedLabel?.lang || requestedLabel?.language_code
+    const normalizedRequestedLanguage = typeof requestedLanguage === 'string'
+        ? requestedLanguage.toLowerCase().split(/[-_]/)[0]
+        : ''
+
+    if (language === 'da') {
+        const result = { text: requestedText, translated: false, fallback: false }
+        artworkDescriptionCache.set(cacheKey, result)
+        return result
+    }
+
+    const danishArtwork = await fetchArtwork(objectNumber, 'da')
+    const danishText = getDescription(danishArtwork)
+    const isOfficialTranslation = requestedText && (
+        normalizedRequestedLanguage
+            ? normalizedRequestedLanguage === language
+            : requestedText !== danishText
+    )
+
+    if (isOfficialTranslation) {
+        const result = { text: requestedText, translated: false, fallback: false }
+        artworkDescriptionCache.set(cacheKey, result)
+        return result
+    }
+
+    if (!danishText) {
+        return { text: '', translated: false, fallback: false }
+    }
+
+    try {
+        const response = await fetch('/api/translate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: danishText, targetLanguage: language })
+        })
+
+        if (!response.ok) {
+            const result = await response.json().catch(() => ({}))
+            throw new Error(result.error || `Translation request failed (${response.status}).`)
         }
 
-        cardBtn.innerText = 'Se værket på SMK';
-        if (artworksInfo.webUrl[i]) {
-            cardBtn.href = artworksInfo.webUrl[i];
-            cardBtn.target = '_blank';
-            cardBtn.rel = 'noopener noreferrer';
-        } else {
-            cardBtn.setAttribute('aria-disabled', 'true');
+        const result = await response.json()
+        if (typeof result.text !== 'string' || !result.text.trim()) {
+            throw new Error('Translation service returned an empty description.')
         }
 
-        /* Apply styling */
-        card.classList.add('card');
-        cardTitle.classList.add('cardTitle');
-        cardAuthor.classList.add('cardAuthor');
-        cardYear.classList.add('cardYear');
-        cardDisplay.classList.add('cardDisplay');
-        cardBtn.classList.add('cardBtn')
-        cardImage.classList.add('cardImage');
-
-        /* Nest child elements to card */
-        card.appendChild(cardTitle);
-        card.appendChild(cardAuthor);
-        card.appendChild(cardYear);
-        card.appendChild(cardDisplay);
-        card.appendChild(cardImage);
-        card.appendChild(cardBtn);
-
-        /* Show card on website */
-        artworkList.append(card);
+        const description = { text: normalizeText(result.text), translated: true, fallback: false }
+        artworkDescriptionCache.set(cacheKey, description)
+        return description
+    } catch (error) {
+        console.warn('Artwork description translation is unavailable:', error)
+        return { text: danishText, translated: false, fallback: true, error: true }
     }
 }
