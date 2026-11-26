@@ -13,32 +13,32 @@ Rendering: Uses Leaflet.js to render actual OSM way coordinates as polygons on t
   <div class="osm-map-container">
     <!-- Map Controls -->
     <div class="map-controls">
-      <button @click="resetView" :disabled="!isMapLoaded" class="btn btn-primary">Reset View</button>
+      <button @click="resetView" :disabled="!isMapLoaded" class="btn btn-primary">{{ t('map.resetView') }}</button>
       <button
         @click="startPathfinding"
         :disabled="!isMapLoaded || pathfindingStep === 'origin' || pathfindingStep === 'destination'"
         class="btn btn-primary"
       >
-        {{ pathfindingStep === 'complete' ? 'Plan Another Route' : 'Plan Route' }}
+        {{ t(pathfindingStep === 'complete' ? 'map.planAnotherRoute' : 'map.planRoute') }}
       </button>
       <button
         v-if="selectedStartRoom || selectedDestinationRoom"
         @click="cancelPathfinding"
         class="btn btn-secondary"
       >
-        Reset Route
+        {{ t('map.resetRoute') }}
       </button>
       <form class="room-search-form" role="search" @submit.prevent="searchRoom">
         <input
           v-model="roomSearchQuery"
           class="room-search-input"
           type="search"
-          aria-label="Search room name or reference"
-          placeholder="Search room name or ref"
+          :aria-label="t('map.roomSearchLabel')"
+          :placeholder="t('map.roomSearchPlaceholder')"
           :disabled="!isMapLoaded"
         />
         <button type="submit" class="btn btn-primary" :disabled="!isMapLoaded">
-          Search
+          {{ t('map.search') }}
         </button>
         <button
           v-if="searchedRoom"
@@ -46,7 +46,7 @@ Rendering: Uses Leaflet.js to render actual OSM way coordinates as polygons on t
           class="btn btn-secondary"
           @click="clearRoomHighlight"
         >
-          Clear Highlight
+          {{ t('map.clearHighlight') }}
         </button>
       </form>
     </div>
@@ -57,7 +57,7 @@ Rendering: Uses Leaflet.js to render actual OSM way coordinates as polygons on t
     <!-- Loading State Overlay -->
     <Transition name="fade">
       <div v-if="isLoading && !errorMessage" class="loading-overlay">
-        <p>Loading OpenStreetMap data...</p>
+        <p>{{ t('map.loading') }}</p>
       </div>
     </Transition>
 
@@ -68,7 +68,7 @@ Rendering: Uses Leaflet.js to render actual OSM way coordinates as polygons on t
         @click="toggleBuildingInfo"
         class="fab-button fab-info"
         :class="{ 'is-active': showBuildingInfo }"
-        title="Building Information"
+        :title="t('map.buildingInformation')"
       >
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="12" cy="12" r="10"></circle>
@@ -82,7 +82,7 @@ Rendering: Uses Leaflet.js to render actual OSM way coordinates as polygons on t
         @click="toggleScanner"
         class="fab-button"
         :class="{ 'is-active': drawerOpen }"
-        title="Scan QR Code"
+        :title="t('map.scanQr')"
       >
         <svg v-if="!drawerOpen" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
           <path :d="cameraIconPath"/>
@@ -96,14 +96,14 @@ Rendering: Uses Leaflet.js to render actual OSM way coordinates as polygons on t
       <Transition name="slide-up">
         <div v-if="showBuildingInfo" class="building-info-popup">
           <div class="info-popup-header">
-            <h3>Building Information</h3>
-            <button @click="showBuildingInfo = false" class="btn-close" aria-label="Close info">&times;</button>
+            <h3>{{ t('map.buildingInformation') }}</h3>
+            <button @click="showBuildingInfo = false" class="btn-close" :aria-label="t('map.closeInfo')">&times;</button>
           </div>
           <div class="info-popup-content">
-            <p><strong>Museum:</strong> SMK - Statens Museum for Kunst</p>
-            <p><strong>Location:</strong> Copenhagen, Denmark</p>
-            <p><strong>Data Source:</strong> OpenStreetMap Indoor Mapping</p>
-            <p><strong>Note:</strong> Real room data from OSM contributors shows actual room polygons, corridors, and doors mapped by the community.</p>
+            <p><strong>{{ t('map.museum') }}:</strong> SMK - Statens Museum for Kunst</p>
+            <p><strong>{{ t('map.location') }}:</strong> {{ t('map.city') }}</p>
+            <p><strong>{{ t('map.dataSource') }}:</strong> {{ t('map.osmIndoor') }}</p>
+            <p><strong>{{ t('map.note') }}:</strong> {{ t('map.mapNote') }}</p>
           </div>
         </div>
       </Transition>
@@ -119,11 +119,11 @@ Rendering: Uses Leaflet.js to render actual OSM way coordinates as polygons on t
           class="route-prompt-button"
           @click="cancelPathfinding"
         >
-          Cancel
+          {{ t('map.cancel') }}
         </button>
       </div>
 
-      <div class="level-buttons" role="group" aria-label="Select floor" :aria-disabled="!isMapLoaded">
+      <div class="level-buttons" role="group" :aria-label="t('map.selectFloor')" :aria-disabled="!isMapLoaded">
         <button
           v-for="option in levelOptions"
           :key="option.value"
@@ -146,8 +146,8 @@ Rendering: Uses Leaflet.js to render actual OSM way coordinates as polygons on t
             <aside class="drawer-panel-inner">
               <!-- Drawer header -->
               <header class="drawer-header">
-                <h3>QR Scanner</h3>
-                <button type="button" @click.stop="closeDrawer" class="btn-close" aria-label="Close scanner">&times;</button>
+                <h3>{{ t('map.qrScanner') }}</h3>
+                <button type="button" @click.stop="closeDrawer" class="btn-close" :aria-label="t('map.closeScanner')">&times;</button>
               </header>
 
               <!-- Drawer body (actual scanner) -->
@@ -162,33 +162,33 @@ Rendering: Uses Leaflet.js to render actual OSM way coordinates as polygons on t
 
     <!-- Error Message -->
     <div v-if="errorMessage" class="error-message">
-      <p>{{ errorMessage }}</p>
-      <button @click="loadOSMData" class="btn btn-secondary">Retry</button>
+      <p>{{ t('map.loadError') }}</p>
+      <button @click="loadOSMData" class="btn btn-secondary">{{ t('map.retry') }}</button>
     </div>
 
     <!-- wayfinding Info Panel -->
     <div class="wayfinding-panel">
-      <h3>Current Location: {{ currentRoomName }}</h3>
+      <h3>{{ t('map.currentLocation', { room: currentRoomName }) }}</h3>
       
       <div v-if="!isInRoom">
-        <p>Please scan a QR code in a room to set your location.</p>
-        <p><strong>Museum Info:</strong></p>
+        <p>{{ t('map.scanToSetLocation') }}</p>
+        <p><strong>{{ t('map.museumInfo') }}</strong></p>
         <ul>
           <li>SMK - Statens Museum for Kunst</li>
-          <li>Copenhagen, Denmark</li>
-          <li>Data Source: OpenStreetMap Indoor Mapping</li>
+          <li>{{ t('map.city') }}</li>
+          <li>{{ t('map.dataSource') }}: {{ t('map.osmIndoor') }}</li>
         </ul>
       </div>
       
       <div v-else>
-        <p>You are currently in: {{ currentRoomName }}</p>
+        <p>{{ t('map.youAreHere', { room: currentRoomName }) }}</p>
         
         <!-- wayfinding Route Display -->
         <div class="route-info" v-if="wayfindingRoute.length > 0">
-          <h4>Next Steps:</h4>
+          <h4>{{ t('map.nextSteps') }}:</h4>
           <ul>
             <li v-for="(room, index) in wayfindingRoute" :key="index">
-              {{ room.name }} (Level {{ room.level }})
+              {{ room.name }} ({{ t('map.floorNumber', { level: room.level }) }})
             </li>
           </ul>
         </div>
@@ -200,35 +200,56 @@ Rendering: Uses Leaflet.js to render actual OSM way coordinates as polygons on t
 <script setup>
 const cameraIconPath = 'M3 7V5a2 2 0 012-2h2m10 0h2a2 2 0 012 2v2m0 10v2a2 2 0 01-2 2h-2M7 21H5a2 2 0 01-2-2v-2'
 const xIconPath = 'M6.25 6.3a.75.75 0 011.06 0L12 10.94l4.69-4.68a.75.75 0 011.06 1.06L13.06 12l4.69 4.69a.75.75 0 01-1.06 1.06L12 13.06l-4.69 4.69a.75.75 0 01-1.06-1.06L10.94 12 6.25 7.31a.75.75 0 010-1.06z'
-import { ref, onMounted, computed, onUnmounted } from 'vue'
+import { createApp, defineComponent, h, ref, onMounted, computed, onUnmounted, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import QRScanner from './QRScanner.vue'
 import { useMuseumwayfinding } from '../stores/museumwayfinding.js'
 import stairsIconUrl from '../assets/icons/stairs.svg'
 import elevatorIconUrl from '../assets/icons/elevator.svg'
+import { i18n } from '../i18n/index.js'
 
 // Store reference
 const store = useMuseumwayfinding()
+const { t, locale } = useI18n()
+const isInRoom = computed(() => store.isInRoom)
+
+const BuildingInfoContent = defineComponent({
+  setup() {
+    const { t } = useI18n()
+    return () => h('div', { class: 'building-info-content' }, [
+      h('h4', t('map.buildingTitle')),
+      h('p', [
+        h('strong', `${t('map.dataSource')}: `),
+        t('map.osmIndoor'),
+        h('br'),
+        h('strong', `${t('map.note')}: `),
+        t('map.mapNote')
+      ])
+    ])
+  }
+})
 
 // Local state using Vue refs for reactivity
 const currentLevel = ref('1')
 const pathfindingStep = ref('idle')
 const selectedStartRoom = ref(null)
 const selectedDestinationRoom = ref(null)
-const routeWarning = ref('')
+const routeWarnings = ref([])
 const roomSearchQuery = ref('')
 const roomSearchMessage = ref('')
 const searchedRoom = ref(null)
 const nonInteractiveRoomIds = new Set(['1528606839', '1528606840', '1580154249'])
-const levelOptions = [
-  { value: '0', label: 'Basement' },
-  { value: '1', label: 'Ground' },
-  { value: '2', label: '1st Floor' },
-  { value: '3', label: '2nd Floor' }
-]
+const levelOptions = computed(() => [
+  { value: '0', label: t('map.basement') },
+  { value: '1', label: t('map.ground') },
+  { value: '2', label: t('map.firstFloor') },
+  { value: '3', label: t('map.secondFloor') }
+])
 let osmMapInstance = null
 const isMapLoaded = ref(false)
 const isLoading = ref(true)
 const errorMessage = ref(null)
+let infoControlApp = null
 
 // Drawer � single boolean, no animation-phase tracking needed
 const drawerOpen = ref(false)
@@ -245,7 +266,9 @@ let plannedRouteSegments = []
 
 // Computed properties
 const currentRoomName = computed(() => {
-  return store.getCurrentRoomName(store.currentLocation) || 'Unknown Room'
+  if (!store.currentLocation) return t('map.unknownRoom')
+  const roomName = store.getCurrentRoomName(store.currentLocation)
+  return roomName === 'Unknown Room' ? t('map.unknownRoom') : roomName
 })
 
 const wayfindingRoute = computed(() => {
@@ -253,11 +276,15 @@ const wayfindingRoute = computed(() => {
 })
 
 const pathfindingPrompt = computed(() => {
-  if (pathfindingStep.value === 'origin') return 'Select your current location'
-  if (pathfindingStep.value === 'destination') return 'Where would you like to go?'
+  if (pathfindingStep.value === 'origin') return t('map.promptOrigin')
+  if (pathfindingStep.value === 'destination') return t('map.promptDestination')
   if (pathfindingStep.value === 'complete') {
-    const routeSummary = `Route selected: ${selectedStartRoom.value.name} → ${selectedDestinationRoom.value.name}`
-    return routeWarning.value ? `${routeSummary}. ${routeWarning.value}` : routeSummary
+    const routeSummary = t('map.routeSelected', {
+      start: selectedStartRoom.value.name,
+      destination: selectedDestinationRoom.value.name
+    })
+    const warnings = routeWarnings.value.map(key => t(`map.${key}`)).join(' ')
+    return warnings ? `${routeSummary}. ${warnings}` : routeSummary
   }
   return ''
 })
@@ -371,7 +398,7 @@ function createIndoorWayLayer(way) {
         [0, 0]
       )
     const iconUrl = way.type === 'steps' ? stairsIconUrl : elevatorIconUrl
-    const featureLabel = way.type === 'steps' ? 'Stairs' : 'Elevator'
+    const featureLabel = t(`map.featureTypes.${way.type}`)
 
     layer = L.marker(position, {
       interactive: layerOptions.interactive,
@@ -393,12 +420,10 @@ function createIndoorWayLayer(way) {
         : L.polygon(way.coordinates, layerOptions)
   }
 
+  way.layer = layer
   layer
     .addTo(indoorLayerGroup)
-    .bindPopup(`
-      <b>${way.name}</b><br/>
-      Type: ${way.type}
-    `)
+    .bindPopup(getIndoorPopupContent(way))
 
   if (typeof layer.setStyle === 'function') {
     layer.on('mouseover', function() {
@@ -411,6 +436,13 @@ function createIndoorWayLayer(way) {
     })
   }
   layer.on('click', () => selectRoomForPathfinding(way))
+}
+
+function getIndoorPopupContent(way) {
+  return `
+    <b>${way.name}</b><br/>
+    ${t('map.featureType')}: ${t(`map.featureTypes.${way.type}`)}
+  `
   way.layer = layer
 }
 
@@ -485,9 +517,9 @@ function findConnectorChain(levels, originPosition) {
     const connector = findNearestFeature(connectorCandidates, previousConnector.position)
 
     if (!matchingTypeConnectors.length && connectors.length) {
-      addRouteWarning('The same stair or elevator is not mapped on every floor; using the nearest connector.')
+      addRouteWarning('missingLevelConnector')
     } else if (!connector) {
-      addRouteWarning('A floor has no mapped stairs or elevator; continuing at the nearest mapped connector position.')
+      addRouteWarning('missingConnectors')
     }
 
     chain.push(connector
@@ -509,7 +541,7 @@ function findConnectorChain(levels, originPosition) {
 }
 
 function addRouteWarning(message) {
-  routeWarning.value = [routeWarning.value, message].filter(Boolean).join(' ')
+  if (!routeWarnings.value.includes(message)) routeWarnings.value.push(message)
 }
 
 function addPathfindingSegment(level, points) {
@@ -523,7 +555,7 @@ function addPathfindingSegment(level, points) {
 
 function clearPathfindingRoute() {
   plannedRouteSegments = []
-  routeWarning.value = ''
+  routeWarnings.value = []
   if (pathfindingRouteLayer) pathfindingRouteLayer.clearLayers()
 }
 
@@ -569,7 +601,7 @@ function createPathfindingRoute() {
   if (!startRoom || !destinationRoom) return
 
   clearPathfindingRoute()
-  addRouteWarning('Route is estimated using nearby mapped doors and connectors.')
+  addRouteWarning('estimatedRoute')
   const startLevel = startRoom.level
   const destinationLevel = destinationRoom.level
   const startPosition = getFeaturePosition(startRoom)
@@ -578,7 +610,7 @@ function createPathfindingRoute() {
   const destinationDoor = findNearestDoor(destinationLevel, destinationPosition)
 
   if (!startDoor || !destinationDoor) {
-    addRouteWarning('Some room doors are not mapped; using direct links where needed.')
+    addRouteWarning('missingRoomDoors')
   }
 
   if (startLevel === destinationLevel) {
@@ -602,7 +634,7 @@ function createPathfindingRoute() {
         destinationDoor && getFeaturePosition(destinationDoor),
         destinationPosition
       ])
-      addRouteWarning('No stairs or elevators are mapped on the starting floor, so the floor change cannot be routed.')
+      addRouteWarning('missingStartingConnectors')
     } else {
       connectorChain.forEach((connector, index) => {
         const previousConnector = connectorChain[index - 1]
@@ -648,7 +680,7 @@ function clearRoomHighlight() {
 function searchRoom() {
   const query = roomSearchQuery.value.trim().toLocaleLowerCase()
   if (!query) {
-    roomSearchMessage.value = 'Enter a room name or ref.'
+    roomSearchMessage.value = t('map.enterRoomSearch')
     return
   }
 
@@ -663,13 +695,16 @@ function searchRoom() {
 
   if (!matchedRoom) {
     searchedRoom.value = null
-    roomSearchMessage.value = `No room found for "${roomSearchQuery.value.trim()}".`
+    roomSearchMessage.value = t('map.roomNotFound', { query: roomSearchQuery.value.trim() })
     refreshPathfindingStyles()
     return
   }
 
   searchedRoom.value = matchedRoom
-  roomSearchMessage.value = `Found ${matchedRoom.name} on floor ${matchedRoom.level}.`
+  roomSearchMessage.value = t('map.roomFound', {
+    room: matchedRoom.name,
+    level: matchedRoom.level
+  })
   selectLevel(String(matchedRoom.level))
   osmMapInstance.map.fitBounds(L.latLngBounds(matchedRoom.coordinates), {
     padding: [50, 50],
@@ -714,27 +749,28 @@ if (osmMapInstance?.map) {
         zoom: 19,
         minZoom: 17,
         maxZoom: 22,
-        scrollWheelZoom: false
+        scrollWheelZoom: true
       })
     }
     
     // Add OpenStreetMap tiles with proper attribution - this is the key OSM integration!
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '� <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+      attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
     }).addTo(osmMapInstance.map);
 
     // Add detailed SMK building information control - using OSM data approach
     const infoControl = L.control({ position: 'bottomleft' });
     infoControl.onAdd = function() {
       const div = L.DomUtil.create('div', 'building-info');
-      div.innerHTML = `
-        <div style="background:white; padding:10px; border-radius:5px; box-shadow: 0 0 10px rgba(0,0,0,0.2);">
-          <h4>SMK Building</h4>
-          <p><strong>Data Source:</strong> OpenStreetMap Indoor Mapping<br/>
-             <strong>Note:</strong> Real room data from OSM contributors</p>
-        </div>`;
+      infoControlApp = createApp(BuildingInfoContent)
+      infoControlApp.use(i18n)
+      infoControlApp.mount(div)
       return div;
     };
+    infoControl.onRemove = function() {
+      infoControlApp?.unmount()
+      infoControlApp = null
+    }
     infoControl.addTo(osmMapInstance.map);
 
     // Floor buttons are displayed over the map.
@@ -747,7 +783,7 @@ if (osmMapInstance?.map) {
   }
   catch (error) {
     console.error('Error loading OpenStreetMap data:', error)
-    errorMessage.value = `Failed to load OSM data: ${error.message}`
+    errorMessage.value = error.message
   }
   finally {
     isLoading.value = false
@@ -1010,6 +1046,12 @@ onUnmounted(() => {
       console.log('Error removing map:', e);
     }
   }
+})
+
+watch(locale, () => {
+  indoorWaysRef.forEach(way => {
+    way.layer?.setPopupContent(getIndoorPopupContent(way))
+  })
 })
 </script>
 
@@ -1674,6 +1716,292 @@ onUnmounted(() => {
     left: 12px;
     right: 12px;
     bottom: 70px;
+  }
+}
+
+.osm-map-container {
+  color: var(--smk-ink);
+}
+
+.map-controls {
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 12px;
+  border: 1px solid var(--smk-line);
+  border-radius: 0;
+  background: var(--smk-surface);
+}
+
+.map-controls .btn,
+.room-search-form .btn,
+.error-message .btn,
+.route-prompt-button {
+  border: 1px solid var(--smk-ink);
+  border-radius: 0;
+  background: var(--smk-ink);
+  color: var(--smk-paper);
+  font-weight: 600;
+}
+
+.map-controls .btn:hover:not(:disabled),
+.room-search-form .btn:hover:not(:disabled),
+.error-message .btn:hover:not(:disabled) {
+  background: #333;
+}
+
+.map-controls .btn-secondary,
+.room-search-form .btn-secondary,
+.route-prompt-button {
+  background: var(--smk-paper);
+  color: var(--smk-ink);
+}
+
+.map-controls .btn-secondary:hover:not(:disabled),
+.room-search-form .btn-secondary:hover:not(:disabled),
+.route-prompt-button:hover {
+  background: #e8e8e5;
+}
+
+.room-search-form {
+  gap: 8px;
+}
+
+.room-search-input {
+  min-width: 0;
+  min-height: 44px;
+  padding: 9px 12px;
+  border: 1px solid #858581;
+  border-radius: 0;
+  background: var(--smk-paper);
+  color: var(--smk-ink);
+  font-size: 16px;
+}
+
+.room-search-message {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-left: 3px solid var(--smk-ink);
+  background: var(--smk-surface);
+}
+
+.map-wrapper {
+  height: clamp(24rem, 58dvh, 44rem);
+  border: 1px solid var(--smk-line);
+  border-radius: 0;
+  background: var(--smk-surface);
+}
+
+.map-display {
+  height: 100%;
+  border: 0;
+  border-radius: 0;
+}
+
+.level-buttons {
+  right: 86px;
+  bottom: 14px;
+  gap: 6px;
+  padding: 6px;
+  border: 1px solid var(--smk-line);
+  border-radius: 0;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+}
+
+.level-button {
+  min-height: 40px;
+  padding: 7px 11px;
+  border: 1px solid var(--smk-ink);
+  border-radius: 0;
+  background: var(--smk-paper);
+  color: var(--smk-ink);
+  font-weight: 600;
+}
+
+.level-button:hover:not(:disabled),
+.level-button.is-selected {
+  background: var(--smk-ink);
+  color: var(--smk-paper);
+}
+
+.fab-button {
+  width: 52px;
+  height: 52px;
+  border: 1px solid var(--smk-paper);
+  border-radius: 50%;
+  background: var(--smk-ink);
+  color: var(--smk-paper);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.24);
+}
+
+.fab-button:hover {
+  background: #333;
+}
+
+.fab-button.is-active,
+.fab-button.is-active:hover {
+  background: #333;
+}
+
+.fab-button.fab-info {
+  right: 78px;
+}
+
+.route-prompt {
+  max-width: calc(100% - 24px);
+  border: 1px solid var(--smk-line);
+  border-radius: 0;
+}
+
+.route-prompt p {
+  line-height: 1.4;
+}
+
+.route-prompt-button {
+  min-height: 40px;
+  padding: 6px 10px;
+}
+
+.wayfinding-panel {
+  margin-top: 12px;
+  padding: 18px;
+  border: 1px solid var(--smk-line);
+  border-radius: 0;
+  background: var(--smk-surface);
+}
+
+.wayfinding-panel h3 {
+  margin: 0 0 10px;
+  color: var(--smk-ink);
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.wayfinding-panel p {
+  line-height: 1.55;
+}
+
+.route-info {
+  border: 1px solid var(--smk-line);
+  border-radius: 0;
+  background: var(--smk-paper);
+}
+
+.loading-overlay,
+.error-message,
+.building-info-popup {
+  border: 1px solid var(--smk-line);
+  border-radius: 0;
+  background: var(--smk-paper);
+  color: var(--smk-ink);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
+}
+
+.error-message p {
+  color: var(--smk-ink);
+}
+
+.drawer-header,
+.info-popup-header {
+  border-bottom: 1px solid var(--smk-line);
+  background: var(--smk-paper);
+  color: var(--smk-ink);
+}
+
+.drawer-header h3,
+.info-popup-header h3 {
+  font-weight: 600;
+}
+
+.drawer-header .btn-close,
+.info-popup-header .btn-close {
+  color: var(--smk-ink);
+}
+
+.drawer-body {
+  padding: 20px;
+  background: var(--smk-paper);
+}
+
+.info-popup-content {
+  background: var(--smk-paper);
+}
+
+@media (min-width: 768px) {
+  .map-controls {
+    border-radius: 0;
+  }
+
+  .map-wrapper {
+    height: clamp(32rem, 68vh, 50rem);
+    border-radius: 0;
+  }
+
+  .map-display {
+    height: 100%;
+    border: 0;
+    border-radius: 0;
+  }
+
+  .wayfinding-panel {
+    border-radius: 0;
+  }
+
+  .fab-button.fab-info {
+    right: 78px;
+  }
+}
+
+@media (max-width: 520px) {
+  .map-controls {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .map-controls .btn {
+    width: 100%;
+    min-width: 0;
+    padding-inline: 10px;
+  }
+
+  .room-search-form {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    width: 100%;
+    margin: 0;
+  }
+
+  .room-search-input {
+    width: 100%;
+  }
+
+  .room-search-form .btn-secondary {
+    grid-column: 1 / -1;
+  }
+
+  .map-wrapper {
+    height: clamp(22rem, 54dvh, 36rem);
+    min-height: 22rem;
+  }
+
+  .wayfinding-panel {
+    padding: 15px;
+  }
+}
+
+@media (max-width: 360px) {
+  .map-controls {
+    grid-template-columns: 1fr;
+  }
+
+  .room-search-form {
+    grid-column: auto;
+    grid-template-columns: 1fr;
+  }
+
+  .room-search-form .btn-secondary {
+    grid-column: auto;
   }
 }
 </style>

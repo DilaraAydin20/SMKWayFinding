@@ -1,9 +1,43 @@
-/* ===================================
-   Mobile-First Global Styles
-   SMK Museum Wayfinding App
-   =================================== */
+@font-face {
+  font-family: "Hill SMK";
+  src: url("../assets/brand/HillSMKNormal-Regular.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
 
-/* ===== CSS Reset & Base ===== */
+@font-face {
+  font-family: "Hill SMK";
+  src: url("../assets/brand/HillSMKNormal-DemiBold.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Hill SMK";
+  src: url("../assets/brand/HillSMKNormal-Bold.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+}
+
+:root {
+  font-family: "Hill SMK", Arial, sans-serif;
+  color: #111;
+  background: #fff;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
+  --smk-ink: #111;
+  --smk-paper: #fff;
+  --smk-surface: #f5f5f3;
+  --smk-line: #d8d8d5;
+  --smk-muted: #5b5b58;
+}
+
 *,
 *::before,
 *::after {
@@ -12,154 +46,133 @@
 }
 
 html {
-  /* Prevent text selection on mobile */
-  -webkit-user-select: none;
-  user-select: none;
-  /* Smooth scrolling */
-  scroll-behavior: smooth;
-  /* Fix for iOS Safari */
   min-height: 100%;
-  overflow-x: hidden;
-  overflow-y: auto;
+  overflow-x: clip;
+  scroll-behavior: smooth;
+  scroll-padding-top: 88px;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 body {
-  /* Mobile-specific resets */
-  margin: 0;
-  padding: 0;
+  min-width: 320px;
   min-height: 100vh;
-  overflow-x: hidden;
-  overflow-y: auto;
-  /* Prevent iOS text size adjustment */
-  -webkit-text-size-adjust: 100%;
-  text-size-adjust: 100%;
-  /* Prevent iOS pull-to-refresh */
-  overscroll-behavior-y: contain;
+  margin: 0;
+  overflow-x: clip;
+  background: var(--smk-paper);
+  color: var(--smk-ink);
 }
 
-#app {
-  height: 100vh;
-  height: 100dvh;
-  width: 100%;
-  overflow-x: hidden;
-  overflow-y: auto;
-  overscroll-behavior: contain;
+button,
+input,
+select,
+textarea {
+  font: inherit;
 }
 
-/* ===== Form Elements - Mobile Optimized ===== */
 button,
 select,
 input {
-  /* Prevent iOS zoom on focus */
+  min-height: 44px;
   font-size: 16px;
-  /* Remove iOS default styles */
-  -webkit-appearance: none;
-  appearance: none;
-  border-radius: 8px;
 }
 
-/* Custom select styling */
-select {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23333' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 12px center;
-  padding-right: 36px;
-}
-
-/* ===== Touch-Optimized Interactive Elements ===== */
 button,
 a,
 [role="button"] {
-  /* Minimum touch target size */
-  min-height: 44px;
-  min-width: 44px;
-  /* Smooth tap response */
   cursor: pointer;
 }
 
-button:active,
-a:active,
-[role="button"]:active {
-  /* Visual feedback for touch */
-  opacity: 0.7;
-  transform: scale(0.98);
-  transition: opacity 0.1s, transform 0.1s;
+button:disabled,
+select:disabled,
+input:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
 }
 
-/* ===== Scroll Optimization ===== */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--smk-ink);
+  outline-offset: 3px;
+}
+
+input,
+select,
+textarea {
+  max-width: 100%;
+  border: 1px solid #858581;
+  border-radius: 0;
+  background: var(--smk-paper);
+  color: var(--smk-ink);
+}
+
+input,
+select,
+textarea,
+[contenteditable="true"] {
+  user-select: text;
+}
+
+select {
+  padding: 8px 36px 8px 12px;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23111' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+}
+
+::selection {
+  background: #111;
+  color: #fff;
+}
+
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 7px;
+  height: 7px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #f1f1f1;
+  background: var(--smk-surface);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #888;
-  border-radius: 3px;
+  border-radius: 4px;
+  background: #777;
 }
 
-::-webkit-scrollbar-thumb:hover {
-  background: #555;
-}
-
-/* ===== Safe Area Insets (iPhone X+) ===== */
 @supports (padding: max(0px)) {
-  html {
-    padding-left: env(safe-area-inset-left);
-    padding-right: env(safe-area-inset-right);
-  }
-  
   .app-header {
-    padding-top: max(12px, env(safe-area-inset-top));
+    padding-top: max(10px, env(safe-area-inset-top));
   }
 }
 
-/* ===== Landscape Mode Optimization ===== */
 @media (orientation: landscape) and (max-height: 500px) {
   .app-header {
-    padding: 8px 16px;
-  }
-  
-  .app-header h1 {
-    font-size: 16px;
-  }
-  
-  .app-header p {
-    display: none;
-  }
-  
-  .map-display {
-    height: calc(100vh - 80px);
+    min-height: 56px;
   }
 }
 
-/* ===== Reduced Motion Accessibility ===== */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
   *::after {
+    scroll-behavior: auto !important;
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
-    scroll-behavior: auto !important;
   }
 }
 
-/* ===== High Contrast Mode ===== */
-@media (prefers-contrast: high) {
-  .fab-button {
-    border: 2px solid white;
-  }
-  
+@media (prefers-contrast: more) {
+  .fab-button,
   .btn {
     border: 2px solid currentColor;
   }
 }
 
-/* ===== Print Styles ===== */
 @media print {
   .fab-button,
   .scanner-drawer-overlay,
