@@ -74,7 +74,7 @@ export default {
   align-items: center;
   gap: 8px;
   padding: 12px 16px;
-  background-color: #f9f9f9;
+  background-color: var(--smk-surface);
   border-bottom: 1px solid #eee;
   cursor: pointer;
   user-select: none;
@@ -94,7 +94,7 @@ export default {
   margin: 0;
   font-size: 15px;
   font-weight: 600;
-  color: #1a4d78;
+  color: var(--smk-ink);
   flex: 1;
 }
 
@@ -109,9 +109,9 @@ export default {
   min-width: 22px;
   height: 22px;
   padding: 0 6px;
-  background-color: #1a4d78;
-  color: white;
-  border-radius: 11px;
+  background-color: var(--smk-ink);
+  color: var(--smk-paper);
+  border-radius: 0;
   font-size: 12px;
   font-weight: 600;
 }
@@ -123,7 +123,7 @@ export default {
 }
 
 .visited-rooms-list {
-  background-color: white;
+  background-color: var(--smk-paper);
   border-bottom: 1px solid #eee;
 }
 
@@ -144,7 +144,7 @@ export default {
 }
 
 .room-item:hover {
-  background-color: #f8f9fa;
+  background-color: var(--smk-surface);
 }
 
 .room-number {
@@ -154,9 +154,9 @@ export default {
   min-width: 24px;
   height: 24px;
   padding: 0 6px;
-  background-color: #e9f7fe;
-  color: #1a4d78;
-  border-radius: 12px;
+  background-color: var(--smk-surface);
+  color: var(--smk-ink);
+  border-radius: 0;
   font-size: 12px;
   font-weight: 600;
   flex-shrink: 0;
@@ -179,20 +179,20 @@ export default {
 }
 
 .empty-icon {
-  color: #ccc;
+  color: var(--smk-line);
   margin-bottom: 12px;
 }
 
 .empty-state p {
   margin: 0 0 4px 0;
   font-size: 15px;
-  color: #666;
+  color: var(--smk-muted);
   font-weight: 500;
 }
 
 .empty-hint {
   font-size: 13px;
-  color: #999;
+  color: var(--smk-line);
 }
 
 /* Slide-down transition */

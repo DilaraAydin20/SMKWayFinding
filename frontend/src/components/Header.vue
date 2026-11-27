@@ -4,19 +4,26 @@ import { useAuthStore } from '../stores/auth.js'
 
 export default {
   name: 'Header',
+  data() {
+    return { selectedLanguage: this.$i18n.locale }
+  },
   computed: {
-    locale() {
-      return this.$i18n.locale
-    },
     t() {
       return (key) => this.$t(key)
     },
     auth() {
       return useAuthStore()
+    },
+    languageOptions() {
+      return languageOptions
+    }
+  },
+  watch: {
+    '$i18n.locale'(value) {
+      this.selectedLanguage = value
     }
   },
   methods: {
-    languageOptions,
     updateLanguage(event) {
       setLanguage(event.target.value)
     },
@@ -41,7 +48,7 @@ export default {
     <div class="header-actions">
       <label class="language-switcher">
         <span>{{ t('app.language') }}</span>
-        <select :value="locale" :aria-label="t('app.language')" @change="updateLanguage">
+        <select :value="selectedLanguage" @change="updateLanguage" :aria-label="t('app.language')">
           <option v-for="language in languageOptions" :key="language.code" :value="language.code">
             {{ language.name }}
           </option>

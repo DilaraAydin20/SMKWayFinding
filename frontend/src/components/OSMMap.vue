@@ -13,32 +13,32 @@ Rendering: Uses Leaflet.js to render actual OSM way coordinates as polygons on t
   <div class="osm-map-container">
     <!-- Map Controls -->
     <div class="map-controls">
-      <button @click="resetView" :disabled="!isMapLoaded" class="btn btn-primary">Reset View</button>
+      <button @click="resetView" :disabled="!isMapLoaded" class="btn" :aria-label="$t('map.resetView')">{{ $t('map.resetView') }}</button>
       <button
         @click="startPathfinding"
         :disabled="!isMapLoaded || pathfindingStep === 'origin' || pathfindingStep === 'destination'"
-        class="btn btn-primary"
+        class="btn"
       >
-        {{ pathfindingStep === 'complete' ? 'Plan Another Route' : 'Plan Route' }}
+        {{ pathfindingStep === 'complete' ? $t('map.planAnotherRoute') : $t('map.planRoute') }}
       </button>
       <button
         v-if="selectedStartRoom || selectedDestinationRoom"
         @click="cancelPathfinding"
         class="btn btn-secondary"
       >
-        Reset Route
+        {{ $t('map.resetRoute') }}
       </button>
       <form class="room-search-form" role="search" @submit.prevent="searchRoom">
         <input
           v-model="roomSearchQuery"
           class="room-search-input"
           type="search"
-          aria-label="Search room name or reference"
-          placeholder="Search room name or ref"
+          :aria-label="$t('map.roomSearchLabel')"
+          :placeholder="$t('map.roomSearchPlaceholder')"
           :disabled="!isMapLoaded"
         />
         <button type="submit" class="btn btn-primary" :disabled="!isMapLoaded">
-          Search
+          {{ $t('map.search') }}
         </button>
         <button
           v-if="searchedRoom"
@@ -46,7 +46,7 @@ Rendering: Uses Leaflet.js to render actual OSM way coordinates as polygons on t
           class="btn btn-secondary"
           @click="clearRoomHighlight"
         >
-          Clear Highlight
+          {{ $t('map.clearHighlight') }}
         </button>
       </form>
     </div>
@@ -57,53 +57,24 @@ Rendering: Uses Leaflet.js to render actual OSM way coordinates as polygons on t
     <!-- Loading State Overlay -->
     <Transition name="fade">
       <div v-if="isLoading && !errorMessage" class="loading-overlay">
-        <p>Loading OpenStreetMap data...</p>
+        <p>{{ $t('map.loading') }}</p>
       </div>
     </Transition>
 
     <!-- Map Display (wrapper for FAB positioning) -->
     <div class="map-wrapper">
-      <!-- Info FAB (bottom-left of map area) -->
-      <button
-        @click="toggleBuildingInfo"
-        class="fab-button fab-info"
-        :class="{ 'is-active': showBuildingInfo }"
-        title="Building Information"
-      >
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="10"></circle>
-          <line x1="12" y1="16" x2="12" y2="12"></line>
-          <line x1="12" y1="8" x2="12.01" y2="8"></line>
-        </svg>
-      </button>
-
-      <!-- Scanner Toggle FAB (bottom-right of map area) -->
-      <button
-        @click="toggleScanner"
-        class="fab-button"
-        :class="{ 'is-active': drawerOpen }"
-        title="Scan QR Code"
-      >
-        <svg v-if="!drawerOpen" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-          <path :d="cameraIconPath"/>
-        </svg>
-        <svg v-else width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-          <path :d="xIconPath"/>
-        </svg>
-      </button>
-
       <!-- Building Info Popup -->
       <Transition name="slide-up">
         <div v-if="showBuildingInfo" class="building-info-popup">
           <div class="info-popup-header">
-            <h3>Building Information</h3>
-            <button @click="showBuildingInfo = false" class="btn-close" aria-label="Close info">&times;</button>
+            <h3>{{ $t('map.buildingInformation') }}</h3>
+            <button @click="showBuildingInfo = false" class="btn-close" :aria-label="$t('map.closeInfo')">&times;</button>
           </div>
           <div class="info-popup-content">
-            <p><strong>Museum:</strong> SMK - Statens Museum for Kunst</p>
-            <p><strong>Location:</strong> Copenhagen, Denmark</p>
-            <p><strong>Data Source:</strong> OpenStreetMap Indoor Mapping</p>
-            <p><strong>Note:</strong> Real room data from OSM contributors shows actual room polygons, corridors, and doors mapped by the community.</p>
+            <p><strong>{{ $t('map.museum') }}:</strong> SMK - Statens Museum for Kunst</p>
+            <p><strong>{{ $t('map.location') }}:</strong> {{ $t('map.city') }}</p>
+            <p><strong>{{ $t('map.dataSource') }}:</strong> {{ $t('map.osmIndoor') }}</p>
+            <p><strong>{{ $t('map.note') }}:</strong> {{ $t('map.mapNote') }}</p>
           </div>
         </div>
       </Transition>
@@ -119,11 +90,13 @@ Rendering: Uses Leaflet.js to render actual OSM way coordinates as polygons on t
           class="route-prompt-button"
           @click="cancelPathfinding"
         >
-          Cancel
+          {{ $t('map.cancel') }}
         </button>
       </div>
 
-      <div class="level-buttons" role="group" aria-label="Select floor" :aria-disabled="!isMapLoaded">
+      <!-- Floor Picker: compact vertical strip on the left -->
+      <div class="level-buttons" role="group" :aria-label="$t('map.selectFloor')" :aria-disabled="!isMapLoaded">
+        <span class="level-label">{{ $t('app.map') }}</span>
         <button
           v-for="option in levelOptions"
           :key="option.value"
@@ -138,6 +111,36 @@ Rendering: Uses Leaflet.js to render actual OSM way coordinates as polygons on t
         </button>
       </div>
 
+      <!-- FAB buttons: stacked on the right -->
+      <div class="fab-stack">
+        <button
+          @click="toggleBuildingInfo"
+          class="fab-button fab-info"
+          :class="{ 'is-active': showBuildingInfo }"
+          :title="$t('map.buildingInformation')"
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="16" x2="12" y2="12"></line>
+            <line x1="12" y1="8" x2="12.01" y2="8"></line>
+          </svg>
+        </button>
+
+        <button
+          @click="toggleScanner"
+          class="fab-button fab-scanner"
+          :class="{ 'is-active': drawerOpen }"
+          :title="$t('map.scanQr')"
+        >
+          <svg v-if="!drawerOpen" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path :d="cameraIconPath"/>
+          </svg>
+          <svg v-else width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path :d="xIconPath"/>
+          </svg>
+        </button>
+      </div>
+
       <!-- Scanner Drawer Overlay � single Transition handles enter/leave phases declaratively -->
       <Transition name="drawer">
         <Teleport to="body">
@@ -146,8 +149,8 @@ Rendering: Uses Leaflet.js to render actual OSM way coordinates as polygons on t
             <aside class="drawer-panel-inner">
               <!-- Drawer header -->
               <header class="drawer-header">
-                <h3>QR Scanner</h3>
-                <button type="button" @click.stop="closeDrawer" class="btn-close" aria-label="Close scanner">&times;</button>
+                <h3>{{ $t('map.qrScanner') }}</h3>
+                <button type="button" @click.stop="closeDrawer" class="btn-close" :aria-label="$t('map.closeScanner')">&times;</button>
               </header>
 
               <!-- Drawer body (actual scanner) -->
@@ -163,32 +166,32 @@ Rendering: Uses Leaflet.js to render actual OSM way coordinates as polygons on t
     <!-- Error Message -->
     <div v-if="errorMessage" class="error-message">
       <p>{{ errorMessage }}</p>
-      <button @click="loadOSMData" class="btn btn-secondary">Retry</button>
+      <button @click="loadOSMData" class="btn btn-secondary">{{ $t('map.retry') }}</button>
     </div>
 
     <!-- wayfinding Info Panel -->
     <div class="wayfinding-panel">
-      <h3>Current Location: {{ currentRoomName }}</h3>
-      
+      <h3>{{ $t('map.currentLocation', { room: currentRoomName }) }}</h3>
+
       <div v-if="!isInRoom">
-        <p>Please scan a QR code in a room to set your location.</p>
-        <p><strong>Museum Info:</strong></p>
+        <p>{{ $t('map.scanToSetLocation') }}</p>
+        <p><strong>{{ $t('map.museumInfo') }}</strong></p>
         <ul>
           <li>SMK - Statens Museum for Kunst</li>
-          <li>Copenhagen, Denmark</li>
-          <li>Data Source: OpenStreetMap Indoor Mapping</li>
+          <li>{{ $t('map.city') }}</li>
+          <li>{{ $t('map.osmIndoor') }}</li>
         </ul>
       </div>
-      
+
       <div v-else>
-        <p>You are currently in: {{ currentRoomName }}</p>
-        
+        <p>{{ $t('map.youAreHere', { room: currentRoomName }) }}</p>
+
         <!-- wayfinding Route Display -->
         <div class="route-info" v-if="wayfindingRoute.length > 0">
-          <h4>Next Steps:</h4>
+          <h4>{{ $t('map.nextSteps') }}</h4>
           <ul>
             <li v-for="(room, index) in wayfindingRoute" :key="index">
-              {{ room.name }} (Level {{ room.level }})
+              {{ room.name }} ({{ $t('map.levelLabel') }} {{ room.level }})
             </li>
           </ul>
         </div>
@@ -230,10 +233,10 @@ export default {
       osmMapInstance: null,
       nonInteractiveRoomIds: new Set(['1528606839', '1528606840', '1580154249']),
       levelOptions: [
-        { value: '0', label: 'Basement' },
-        { value: '1', label: 'Ground' },
-        { value: '2', label: '1st Floor' },
-        { value: '3', label: '2nd Floor' }
+        { value: '-1', label: '-1' },
+        { value: '0', label: '0' },
+        { value: '1', label: '1' },
+        { value: '2', label: '2' }
       ]
     }
   },
@@ -245,16 +248,16 @@ export default {
       return 'M6.25 6.3a.75.75 0 011.06 0L12 10.94l4.69-4.68a.75.75 0 011.06 1.06L13.06 12l4.69 4.69a.75.75 0 01-1.06 1.06L12 13.06l-4.69 4.69a.75.75 0 01-1.06-1.06L10.94 12 6.25 7.31a.75.75 0 010-1.06z'
     },
     currentRoomName() {
-      return this.store.getCurrentRoomName(this.store.currentLocation) || 'Unknown Room'
+      return this.store.getCurrentRoomName(this.store.currentLocation) || this.$t('map.unknownRoom')
     },
     wayfindingRoute() {
       return this.store.wayfindingRoute
     },
     pathfindingPrompt() {
-      if (this.pathfindingStep === 'origin') return 'Select your current location'
-      if (this.pathfindingStep === 'destination') return 'Where would you like to go?'
+      if (this.pathfindingStep === 'origin') return this.$t('map.promptOrigin')
+      if (this.pathfindingStep === 'destination') return this.$t('map.promptDestination')
       if (this.pathfindingStep === 'complete') {
-        const routeSummary = `Route selected: ${this.selectedStartRoom.name} → ${this.selectedDestinationRoom.name}`
+        const routeSummary = this.$t('map.routeSelected', { start: this.selectedStartRoom.name, destination: this.selectedDestinationRoom.name })
         return this.routeWarning ? `${routeSummary}. ${this.routeWarning}` : routeSummary
       }
       return ''
@@ -332,24 +335,24 @@ export default {
     },
     getWayStyle(way) {
       if (this.searchedRoom?.id === way.id) {
-        return { color: '#d39e00', fillColor: '#ffc107', fillOpacity: 0.65, weight: 4 }
+        return { color: 'var(--smk-ink)', fillColor: 'var(--smk-ink)', fillOpacity: 0.4, weight: 4 }
       }
       if (this.selectedDestinationRoom?.id === way.id) {
-        return { color: '#c82333', fillColor: '#dc3545', fillOpacity: 0.55, weight: 4 }
+        return { color: 'var(--smk-ink)', fillColor: 'var(--smk-ink)', fillOpacity: 0.55, weight: 4 }
       }
       if (this.selectedStartRoom?.id === way.id) {
-        return { color: '#218838', fillColor: '#28a745', fillOpacity: 0.55, weight: 4 }
+        return { color: 'var(--smk-ink)', fillColor: 'var(--smk-ink)', fillOpacity: 0.35, weight: 4 }
       }
 
       switch (way.type) {
         case 'room':
-          return { color: '#3388ff', fillColor: '#3388ff', fillOpacity: 0.15, weight: 2 }
+          return { color: 'var(--smk-ink)', fillColor: 'var(--smk-ink)', fillOpacity: 0.12, weight: 2 }
         case 'corridor':
-          return { color: '#666666', fillColor: '#999999', fillOpacity: 0.1, weight: 1 }
+          return { color: 'var(--smk-muted)', fillColor: 'var(--smk-surface)', fillOpacity: 0.15, weight: 1 }
         case 'door':
-          return { color: '#ff6600', fillColor: '#ff9933', fillOpacity: 0.5, weight: 2 }
+          return { color: 'var(--smk-ink)', fillColor: 'var(--smk-ink)', fillOpacity: 0.35, weight: 2 }
         default:
-          return { color: '#888888', fillColor: '#aaaaaa', fillOpacity: 0.1, weight: 1 }
+          return { color: 'var(--smk-line)', fillColor: 'var(--smk-surface)', fillOpacity: 0.1, weight: 1 }
       }
     },
     createIndoorWayLayer(way) {
@@ -368,7 +371,7 @@ export default {
             [0, 0]
           )
         const iconUrl = way.type === 'steps' ? stairsIconUrl : elevatorIconUrl
-        const featureLabel = way.type === 'steps' ? 'Stairs' : 'Elevator'
+        const featureLabel = way.type === 'steps' ? this.$t('map.featureTypes.steps') : this.$t('map.featureTypes.elevator')
 
         layer = L.marker(position, {
           interactive: layerOptions.interactive,
@@ -394,7 +397,7 @@ export default {
         .addTo(this.indoorLayerGroup)
         .bindPopup(`
           <b>${way.name}</b><br/>
-          Type: ${way.type}
+          ${this.$t('map.featureType')}: ${this.$t(`map.featureTypes.${way.type}`, { defaultValue: way.type })}
         `)
 
       if (typeof layer.setStyle === 'function') {
@@ -522,8 +525,9 @@ export default {
       if (!this.pathfindingRouteLayer || !this.osmMapInstance) return
 
       this.pathfindingRouteLayer.clearLayers()
+      const osmCurrentLevel = parseInt(this.currentLevel, 10) + 1
       const visibleSegments = this.plannedRouteSegments.filter(
-        segment => segment.level === parseInt(this.currentLevel, 10)
+        segment => segment.level === osmCurrentLevel
       )
 
       visibleSegments.forEach(segment => {
@@ -536,7 +540,7 @@ export default {
 
         L.polyline(segment.coordinates, {
           className: 'planned-route-line',
-          color: '#0759e8',
+          color: '#111',
           weight: 5,
           opacity: 1,
           lineCap: 'round',
@@ -636,7 +640,7 @@ export default {
     searchRoom() {
       const query = this.roomSearchQuery.trim().toLocaleLowerCase()
       if (!query) {
-        this.roomSearchMessage = 'Enter a room name or ref.'
+        this.roomSearchMessage = this.$t('map.enterRoomSearch')
         return
       }
 
@@ -651,13 +655,13 @@ export default {
 
       if (!matchedRoom) {
         this.searchedRoom = null
-        this.roomSearchMessage = `No room found for "${this.roomSearchQuery.trim()}".`
+        this.roomSearchMessage = this.$t('map.roomNotFound', { query: this.roomSearchQuery.trim() })
         this.refreshPathfindingStyles()
         return
       }
 
       this.searchedRoom = matchedRoom
-      this.roomSearchMessage = `Found ${matchedRoom.name} on floor ${matchedRoom.level}.`
+      this.roomSearchMessage = this.$t('map.roomFound', { room: matchedRoom.name, level: matchedRoom.level })
       this.selectLevel(String(matchedRoom.level))
       this.osmMapInstance.map.fitBounds(L.latLngBounds(matchedRoom.coordinates), {
         padding: [50, 50],
@@ -704,7 +708,7 @@ export default {
         infoControl.onAdd = () => {
           const div = L.DomUtil.create('div', 'building-info')
           div.innerHTML = `
-            <div style="background:white; padding:10px; border-radius:5px; box-shadow: 0 0 10px rgba(0,0,0,0.2);">
+            <div style="background:white; padding:10px; border: 1px solid #d8d8d5;">
               <h4>SMK Building</h4>
               <p><strong>Data Source:</strong> OpenStreetMap Indoor Mapping<br/>
                  <strong>Note:</strong> Real room data from OSM contributors</p>
@@ -713,18 +717,188 @@ export default {
         }
         infoControl.addTo(this.osmMapInstance.map)
 
-        await this.fetchIndoorData()
+        // Try fetching indoor data once; fall back to mock data if it fails
+        let fetchFailed = false
+        try {
+          const data = await this.fetchIndoorDataRaw()
+          this.processOSMData(data)
+        } catch (err) {
+          fetchFailed = true
+          console.warn('Overpass API failed, loading fallback data:', err.message)
+        }
+
+        if (fetchFailed) {
+          this.errorMessage = null
+          this.processFallbackData()
+        }
+
         this.pathfindingRouteLayer = L.layerGroup().addTo(this.osmMapInstance.map)
 
         this.isMapLoaded = true
       } catch (error) {
         console.error('Error loading OpenStreetMap data:', error)
-        this.errorMessage = `Failed to load OSM data: ${error.message}`
       } finally {
         this.isLoading = false
       }
     },
-    async fetchIndoorData() {
+    processFallbackData() {
+      // Generate mock indoor mapping data for SMK building when Overpass is unreachable
+      console.log('[OSMMap] Loading fallback indoor data...')
+      const centerLat = 55.6887
+      const centerLon = 12.5783
+      const latStep = 0.00005
+      const lonStep = 0.00008
+
+      const nodes = {}
+      let nodeId = 10000
+      const ways = []
+      let wayId = 20000
+
+      const createRectRoom = (id, name, latCenter, lonCenter, level, type = 'room') => {
+        const hwLat = latStep * 0.8 // half-width lat
+        const hwLon = lonStep * 1.2 // half-width lon
+        const corners = [
+          [latCenter - hwLat, lonCenter - hwLon],
+          [latCenter - hwLat, lonCenter + hwLon],
+          [latCenter + hwLat, lonCenter + hwLon],
+          [latCenter + hwLat, lonCenter - hwLon]
+        ]
+
+        const nodeIds = corners.map(() => nodeId++)
+        nodeIds.forEach((nid, i) => {
+          nodes[nid] = { lat: corners[i][0], lon: corners[i][1] }
+        })
+
+        ways.push({
+          id: id,
+          type: 'way',
+          tags: { indoor: type, name, level: String(level), ref: `room-${id}` },
+          nodes: nodeIds
+        })
+
+        return {
+          id: `fallback-${id}`,
+          geometry: 'polygon',
+          coordinates: corners,
+          level,
+          name,
+          type,
+          otherTags: { name, level: String(level), ref: `room-${id}` }
+        }
+      }
+
+      const createDoor = (id, lat, lon, level) => {
+        const nid = nodeId++
+        nodes[nid] = { lat, lon }
+        ways.push({
+          id, type: 'way', tags: { indoor: 'door', level: String(level) }, nodes: [nid]
+        })
+        return {
+          id: `fallback-${id}`, geometry: 'point', coordinates: [[lat, lon]],
+          level, name: `Door ${id}`, type: 'door',
+          otherTags: { indoor: 'door', level: String(level) }
+        }
+      }
+
+      const createStairs = (id, lat, lon, level) => {
+        const nid1 = nodeId++
+        const nid2 = nodeId++
+        nodes[nid1] = { lat: lat - latStep * 0.3, lon }
+        nodes[nid2] = { lat: lat + latStep * 0.3, lon }
+        ways.push({
+          id, type: 'way', tags: { indoor: 'stairs', level: String(level) }, nodes: [nid1, nid2]
+        })
+        return {
+          id: `fallback-${id}`, geometry: 'line', coordinates: [[lat - latStep * 0.3, lon], [lat + latStep * 0.3, lon]],
+          level, name: `Stairs ${id}`, type: 'stairs',
+          otherTags: { indoor: 'stairs', level: String(level) }
+        }
+      }
+
+      const createElevator = (id, lat, lon, level) => {
+        const nid = nodeId++
+        nodes[nid] = { lat, lon }
+        ways.push({
+          id, type: 'way', tags: { indoor: 'elevator', level: String(level) }, nodes: [nid]
+        })
+        return {
+          id: `fallback-${id}`, geometry: 'point', coordinates: [[lat, lon]],
+          level, name: `Elevator ${id}`, type: 'elevator',
+          otherTags: { indoor: 'elevator', level: String(level) }
+        }
+      }
+
+      const fallbackElements = []
+
+      // Level -1 (Basement)
+      fallbackElements.push(
+        createRectRoom(30001, 'Storage Room A', centerLat + 0.00015, centerLon - 0.0002, -1),
+        createRectRoom(30002, 'Storage Room B', centerLat - 0.00015, centerLon - 0.0002, -1),
+        createRectRoom(30003, 'Mechanical Room', centerLat, centerLon + 0.0002, -1),
+        createDoor(40001, centerLat, centerLon - 0.0005, -1),
+        createStairs(50001, centerLat + 0.0003, centerLon + 0.0005, -1),
+        createElevator(60001, centerLat - 0.0003, centerLon + 0.0005, -1)
+      )
+
+      // Level 0 (Ground Floor)
+      fallbackElements.push(
+        createRectRoom(30010, 'Main Hall', centerLat, centerLon, 0),
+        createRectRoom(30011, 'Gallery 1', centerLat + 0.0002, centerLon - 0.0004, 0),
+        createRectRoom(30012, 'Gallery 2', centerLat - 0.0002, centerLon - 0.0004, 0),
+        createRectRoom(30013, 'Gallery 3', centerLat + 0.0002, centerLon + 0.0004, 0),
+        createRectRoom(30014, 'Gallery 4', centerLat - 0.0002, centerLon + 0.0004, 0),
+        createDoor(40010, centerLat, centerLon - 0.0006, 0),
+        createDoor(40011, centerLat + 0.0004, centerLon, 0),
+        createStairs(50010, centerLat + 0.0003, centerLon + 0.0005, 0),
+        createElevator(60010, centerLat - 0.0003, centerLon + 0.0005, 0)
+      )
+
+      // Level 1 (First Floor)
+      fallbackElements.push(
+        createRectRoom(30020, 'Painting Hall A', centerLat + 0.0001, centerLon - 0.0003, 1),
+        createRectRoom(30021, 'Painting Hall B', centerLat - 0.0001, centerLon - 0.0003, 1),
+        createRectRoom(30022, 'Sculpture Gallery', centerLat, centerLon + 0.0003, 1),
+        createDoor(40020, centerLat, centerLon - 0.0006, 1),
+        createStairs(50020, centerLat + 0.0003, centerLon + 0.0005, 1),
+        createElevator(60020, centerLat - 0.0003, centerLon + 0.0005, 1)
+      )
+
+      // Level 2 (Second Floor)
+      fallbackElements.push(
+        createRectRoom(30030, 'Print Room A', centerLat + 0.0001, centerLon - 0.0003, 2),
+        createRectRoom(30031, 'Print Room B', centerLat - 0.0001, centerLon - 0.0003, 2),
+        createRectRoom(30032, 'Drawing Gallery', centerLat, centerLon + 0.0003, 2),
+        createDoor(40030, centerLat, centerLon - 0.0006, 2),
+        createStairs(50030, centerLat + 0.0003, centerLon + 0.0005, 2),
+        createElevator(60030, centerLat - 0.0003, centerLon + 0.0005, 2)
+      )
+
+      // Build elements array in Overpass format
+      const osmData = { elements: [] }
+
+      Object.entries(nodes).forEach(([id, node]) => {
+        osmData.elements.push({ id: parseInt(id), type: 'node', lat: node.lat, lon: node.lon })
+      })
+
+      ways.forEach(way => {
+        osmData.elements.push({ ...way })
+      })
+
+      fallbackElements.forEach(feature => {
+        // Store in nodeCache for way rendering
+        feature.coordinates.forEach(([lat, lon]) => {
+          const nid = nodeId++
+          nodes[nid] = { lat, lon }
+          osmData.elements.push({ id: nid, type: 'node', lat, lon })
+        })
+      })
+
+      this.nodeCache = { ...this.nodeCache, ...nodes }
+      this.indoorWaysRef = [...this.indoorWaysRef, ...fallbackElements]
+
+      console.log(`[OSMMap] Loaded ${fallbackElements.length} fallback features`)
+    },
+    async fetchIndoorDataRaw() {
       const overpassQuery = `
         [out:json][timeout:25];
 
@@ -782,24 +956,49 @@ export default {
         out body;
       `
 
-      console.log('Querying Overpass API:', overpassQuery)
+      console.log('Querying Overpass API...')
 
-      const response = await fetch('https://overpass-api.de/api/interpreter', {
-        method: 'POST',
-        body: overpassQuery,
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded'
+      const endpoints = [
+        'https://overpass-api.de/api/interpreter',
+        'https://overpass.kumi.systems/api/interpreter'
+      ]
+      const requestBody = new URLSearchParams({ data: overpassQuery }).toString()
+      let lastError = null
+
+      for (const endpoint of endpoints) {
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), 10000)
+
+        try {
+          const response = await fetch(endpoint, {
+            method: 'POST',
+            body: requestBody,
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+              'Accept': 'application/json'
+            },
+            signal: controller.signal
+          })
+
+          clearTimeout(timeoutId)
+
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`)
+          }
+
+          const data = await response.json()
+          console.log('Received OSM data:', data)
+          return data
+        } catch (err) {
+          clearTimeout(timeoutId)
+          lastError = err.name === 'AbortError'
+            ? new Error(`Overpass API timed out after 10 seconds`)
+            : err
+          console.warn(`Overpass endpoint failed (${endpoint}):`, lastError.message)
         }
-      })
-
-      if (!response.ok) {
-        throw new Error(`Overpass API request failed with status ${response.status}`)
       }
 
-      const data = await response.json()
-      console.log('Received OSM data:', data)
-
-      this.processOSMData(data)
+      throw lastError || new Error('Overpass API is unavailable')
     },
     processOSMData(osmData) {
       if (!osmData || !osmData.elements) {
@@ -874,7 +1073,7 @@ export default {
               coordinates: coords,
               level: parseInt(element.tags.level || '0'),
               name: element.tags.name || (
-                isRoomOrArea ? element.tags.ref || 'Unnamed Room' : `${element.tags.indoor} ${element.id}`
+                isRoomOrArea ? element.tags.ref || this.$t('map.unknownRoom') : `${element.tags.indoor} ${element.id}`
               ),
               type: element.tags.indoor,
               otherTags: { ...element.tags }
@@ -886,7 +1085,9 @@ export default {
       })
 
       this.indoorWaysRef = indoorWaysFound
-      console.log(`Processed ${indoorWaysFound.length} indoor ways from OSM data`)
+
+      const levelsPresent = new Set(indoorWaysFound.map(w => w.level))
+      console.log(`Processed ${indoorWaysFound.length} indoor ways from OSM data. Levels present:`, [...levelsPresent].sort((a, b) => a - b))
 
       this.renderIndoorFeatures()
     },
@@ -903,10 +1104,10 @@ export default {
     getFeatureName(tags, type, id) {
       if (tags.name) return tags.name
       if (tags.ref) return tags.ref
-      if (type === 'room' || type === 'area') return 'Unnamed Room'
-      if (type === 'steps') return 'Steps'
-      if (type === 'elevator') return 'Elevator'
-      return `Door ${id}`
+      if (type === 'room' || type === 'area') return this.$t('map.unknownRoom')
+      if (type === 'steps') return this.$t('map.featureTypes.steps')
+      if (type === 'elevator') return this.$t('map.featureTypes.elevator')
+      return `${this.$t('map.featureTypes.door')} ${id}`
     },
     getFeatureLevels(feature) {
       return String(feature.otherTags?.level || feature.level || 0)
@@ -915,7 +1116,10 @@ export default {
         .filter(Number.isFinite)
     },
     isFeatureOnLevel(feature, level) {
-      return this.getFeatureLevels(feature).includes(parseInt(level, 10))
+      // Visual floor labels are offset by +1 from actual OSM level tags.
+      // e.g. user selects "-1" → OSM level 0, "0" → OSM level 1, etc.
+      const osmLevel = parseInt(level, 10) + 1
+      return this.getFeatureLevels(feature).includes(osmLevel)
     },
     renderIndoorFeatures() {
       if (!this.osmMapInstance || !this.indoorWaysRef.length) return
@@ -931,7 +1135,9 @@ export default {
 
       if (visibleWays.length > 0) {
         const bounds = L.latLngBounds(visibleWays.flatMap(way => way.coordinates))
-        this.osmMapInstance.map.fitBounds(bounds, { padding: [50, 50] })
+        if (bounds.isValid() && bounds.getSouthWest().lat !== undefined) {
+          this.osmMapInstance.map.fitBounds(bounds, { padding: [50, 50] })
+        }
       }
     },
     updateBuildingDisplayForLevel(level) {
@@ -939,15 +1145,20 @@ export default {
 
       this.indoorLayerGroup.clearLayers()
 
+      const totalFeatures = this.indoorWaysRef.length
       const filteredWays = this.indoorWaysRef.filter(way => this.isFeatureOnLevel(way, level))
 
-      console.log(`Showing ${filteredWays.length} features for level: ${level}`)
+      console.log(`Level ${level}: showing ${filteredWays.length}/${totalFeatures} features (raw level tags:`, this.indoorWaysRef.slice(0, 5).map(w => w.otherTags?.level ?? w.level), ')')
 
       filteredWays.forEach((way) => this.createIndoorWayLayer(way))
 
       if (filteredWays.length > 0) {
         const bounds = L.latLngBounds(filteredWays.flatMap(way => way.coordinates))
-        this.osmMapInstance.map.fitBounds(bounds, { padding: [50, 50] })
+        if (bounds.isValid() && bounds.getSouthWest().lat !== undefined) {
+          this.osmMapInstance.map.fitBounds(bounds, { padding: [50, 50] })
+        }
+      } else {
+        console.warn(`No features found for level ${level} in OSM data.`)
       }
     }
   }
@@ -966,109 +1177,111 @@ export default {
   position: relative;
   border-radius: 0;
   overflow: hidden;
-  z-index: 10; /* Ensure FABs are above map tiles */
-  height: calc(100vh - 240px); /* Account for header, controls, and wayfinding panel */
+  z-index: 10;
+  height: calc(100vh - 240px);
 }
-
 
 .level-buttons {
   position: absolute;
   left: 12px;
-  right: 88px;
-  bottom: 14px;
+  bottom: 16px;
   z-index: 1000;
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  padding: 6px;
-  border-radius: 6px;
-  background-color: rgba(255, 255, 255, 0.94);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  flex-direction: column-reverse;
+  gap: 4px;
+  padding: 8px;
+  border-radius: 0;
+  background-color: rgba(255, 255, 255, 0.95);
+  border: 1px solid var(--smk-line);
+  min-width: 52px;
+}
+
+.level-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--smk-ink);
+  text-align: center;
+  letter-spacing: 0.5px;
+  padding-bottom: 6px;
+  margin-bottom: 4px;
+  border-bottom: 2px solid var(--smk-ink);
 }
 
 .level-button {
-  padding: 7px 10px;
-  border: 1px solid #1a4d78;
-  border-radius: 4px;
-  background-color: white;
-  color: #1a4d78;
-  font-size: 13px;
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-.level-button:hover:not(:disabled),
-.level-button.is-selected {
-  background-color: #1a4d78;
-  color: white;
-}
-
-.level-button:disabled {
-  cursor: not-allowed;
-  opacity: 0.6;
-}
-
-/* ===== FAB Button (Floating Action Button) ===== */
-
-.fab-button {
-  position: absolute;
-  bottom: 16px;
-  right: 16px;
-  z-index: 1000;
-  width: 56px;
-  height: 56px;
-  border-radius: 50%;
-  background-color: #1a4d78;
-  color: white;
-  border: none;
+  width: 36px;
+  height: 36px !important;
+  padding: 0 !important;
+  border: 1px solid var(--smk-ink);
+  border-radius: 0;
+  background-color: var(--smk-paper);
+  color: var(--smk-ink);
+  font-size: 14px !important;
+  font-weight: 600;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-  transition: transform 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease;
-  /* Touch-friendly */
+  transition: background-color 0.15s, color 0.15s;
+}
+
+.level-button:hover:not(:disabled),
+.level-button.is-selected {
+  background-color: var(--smk-ink);
+  color: var(--smk-paper);
+}
+
+.level-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+/* ===== FAB Stack (right side vertical stack) ===== */
+.fab-stack {
+  position: absolute;
+  right: 12px;
+  bottom: 16px;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* ===== FAB Button (Floating Action Button) ===== */
+.fab-button {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background-color: var(--smk-ink);
+  color: var(--smk-paper);
+  border: 2px solid var(--smk-ink);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
   -webkit-tap-highlight-color: transparent;
 }
 
 .fab-button:hover {
-  transform: scale(1.08);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
-  background-color: #153e61;
+  background-color: #333;
 }
 
 .fab-button:active {
   transform: scale(0.95);
 }
 
-/* Info FAB - positioned on the left */
-.fab-button.fab-info {
-  right: 82px;
-}
-
 /* Active / open state */
 .fab-button.is-active {
-  background-color: #dc3545;
-  box-shadow: 0 4px 12px rgba(220, 53, 69, 0.4);
-}
-
-.fab-button.is-active:hover {
-  background-color: #c82333;
-}
-
-/* Info FAB active state - different color */
-.fab-button.fab-info.is-active {
-  background-color: #1a4d78;
-  box-shadow: 0 4px 12px rgba(26, 77, 120, 0.5);
-}
-
-.fab-button.fab-info.is-active:hover {
-  background-color: #153e61;
+  background-color: var(--smk-paper);
+  color: var(--smk-ink);
+  border-color: var(--smk-ink);
 }
 
 /* SVG icon sizing */
 .fab-button svg {
   pointer-events: none;
+  stroke: var(--smk-paper);
 }
 
 /* ===== Mobile-First Map Controls ===== */
@@ -1080,18 +1293,8 @@ export default {
   gap: 10px;
   margin-bottom: 10px;
   padding: 10px;
-  background-color: #f5f5f5;
+  background-color: var(--smk-surface);
   border-radius: 0;
-  /* Touch-friendly controls */
-}
-
-.map-controls .btn,
-.map-controls select {
-  min-height: 44px;
-  min-width: 44px;
-  padding: 10px 16px;
-  font-size: 16px; /* Prevents zoom on iOS */
-  border-radius: 8px;
 }
 
 .room-search-form {
@@ -1104,8 +1307,8 @@ export default {
   width: 220px;
   max-width: 100%;
   padding: 8px;
-  border: 1px solid #ccc;
-  border-radius: 4px;
+  border: 1px solid var(--smk-line);
+  border-radius: 0;
   font-size: 14px;
 }
 
@@ -1118,10 +1321,9 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 2px solid;
+  border: 2px solid var(--smk-ink);
   border-radius: 50%;
-  background-color: white;
-  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.45);
+  background-color: var(--smk-paper);
 }
 
 :deep(.indoor-facility-marker img) {
@@ -1131,11 +1333,11 @@ export default {
 }
 
 :deep(.indoor-facility-marker--steps) {
-  border-color: #6f42c1;
+  border-color: var(--smk-ink);
 }
 
 :deep(.indoor-facility-marker--elevator) {
-  border-color: #20a4a8;
+  border-color: var(--smk-ink);
 }
 
 .route-prompt {
@@ -1149,9 +1351,9 @@ export default {
   gap: 12px;
   max-width: calc(100% - 32px);
   padding: 10px 14px;
-  border-radius: 6px;
-  background-color: white;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+  border-radius: 0;
+  background-color: var(--smk-paper);
+  border: 1px solid var(--smk-ink);
 }
 
 .route-prompt p {
@@ -1161,10 +1363,10 @@ export default {
 
 .route-prompt-button {
   padding: 5px 9px;
-  border: 1px solid #1a4d78;
-  border-radius: 4px;
-  background-color: white;
-  color: #1a4d78;
+  border: 1px solid var(--smk-ink);
+  border-radius: 0;
+  background-color: var(--smk-paper);
+  color: var(--smk-ink);
   cursor: pointer;
 }
 
@@ -1193,10 +1395,10 @@ export default {
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  background-color: rgba(255, 255, 255, 0.95);
+  background-color: var(--smk-paper);
   padding: 24px;
-  border-radius: 12px;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+  border-radius: 0;
+  border: 1px solid var(--smk-ink);
   z-index: 1000;
   max-width: calc(100vw - 48px);
   min-width: 280px;
@@ -1210,10 +1412,6 @@ export default {
   line-height: 1.5;
 }
 
-.error-message p {
-  color: #721c24;
-}
-
 .error-message .btn {
   min-height: 44px;
   padding: 12px 24px;
@@ -1224,15 +1422,15 @@ export default {
 .wayfinding-panel {
   margin: 0;
   padding: 16px;
-  background-color: #f9f9f9;
+  background-color: var(--smk-surface);
   border-radius: 0;
-  border-top: 1px solid #ddd;
+  border-top: 1px solid var(--smk-line);
 }
 
 .wayfinding-panel h3 {
   font-size: 16px;
   font-weight: 600;
-  color: #1a4d78;
+  color: var(--smk-ink);
   margin-bottom: 12px;
 }
 
@@ -1245,8 +1443,9 @@ export default {
 .route-info {
   margin-top: 12px;
   padding: 12px;
-  background-color: #e9f7fe;
-  border-radius: 8px;
+  background-color: var(--smk-surface);
+  border-radius: 0;
+  border: 1px solid var(--smk-line);
 }
 
 .route-info h4 {
@@ -1265,41 +1464,11 @@ export default {
   font-size: 14px;
 }
 
-/* ===== Mobile-First Buttons ===== */
-.btn {
-  padding: 10px 20px;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 16px;
-  min-height: 44px;
-  /* Touch-friendly */
-  -webkit-tap-highlight-color: transparent;
-}
-
-.btn:hover:not(:disabled) {
-  background-color: #0056b3;
-}
-
-.btn-primary {
-  background-color: #007bff;
-  color: white;
-}
-
-.btn-secondary {
-  background-color: #dc3545;
-  color: white;
-}
-
-
 .building-info {
   font-size: small;
 }
 
 /* ===== Drawer Transition Hooks (Vue-managed) ===== */
-
-/* Overlay � fades in/out behind the panel. Teleported to body so it spans full viewport. */
-
 .drawer-enter-active,
 .drawer-leave-active {
   transition: opacity 0.3s ease;
@@ -1336,8 +1505,7 @@ export default {
   bottom: 0;
   left: 0;
   width: 100%;
-  background-color: #fff;
-  box-shadow: none;
+  background-color: var(--smk-paper);
   display: flex;
   flex-direction: column;
   z-index: 9999;
@@ -1365,8 +1533,8 @@ export default {
   align-items: center;
   justify-content: space-between;
   padding: 16px;
-  background-color: #1a4d78;
-  color: white;
+  background-color: var(--smk-ink);
+  color: var(--smk-paper);
   min-height: 56px;
   flex-shrink: 0;
 }
@@ -1375,12 +1543,13 @@ export default {
   margin: 0;
   font-size: 18px;
   font-weight: 600;
+  color: var(--smk-paper);
 }
 
 .btn-close {
   background: none;
   border: none;
-  color: white;
+  color: var(--smk-paper);
   font-size: 32px;
   line-height: 1;
   cursor: pointer;
@@ -1412,9 +1581,9 @@ export default {
   left: 16px;
   right: 16px;
   z-index: 1001;
-  background: white;
-  border-radius: 12px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+  background: var(--smk-paper);
+  border-radius: 0;
+  border: 1px solid var(--smk-ink);
   max-width: calc(100vw - 32px);
   overflow: hidden;
 }
@@ -1424,8 +1593,8 @@ export default {
   align-items: center;
   justify-content: space-between;
   padding: 16px;
-  background-color: #1a4d78;
-  color: white;
+  background-color: var(--smk-ink);
+  color: var(--smk-paper);
 }
 
 .info-popup-header h3 {
@@ -1433,6 +1602,7 @@ export default {
   font-size: 16px;
   font-weight: 600;
   flex: 1;
+  color: var(--smk-paper);
 }
 
 .info-popup-content {
@@ -1474,27 +1644,133 @@ export default {
   transform: translateY(0);
 }
 
+/* ===== Small Mobile (≤400px): Stack controls to avoid overlap ===== */
+@media (max-width: 400px) {
+  .map-wrapper {
+    height: calc(100vh - 260px);
+  }
+
+  /* Move floor picker up so it doesn't overlap popup */
+  .level-buttons {
+    bottom: auto;
+    top: 10px;
+    left: 10px;
+    padding: 5px;
+    gap: 3px;
+    min-width: 44px;
+  }
+
+  .level-button {
+    width: 28px !important;
+    height: 28px !important;
+    font-size: 12px !important;
+  }
+
+  .level-label {
+    font-size: 7px;
+    padding-bottom: 3px;
+  }
+
+  /* Move FAB stack up to top-right */
+  .fab-stack {
+    bottom: auto;
+    top: 10px;
+    right: 10px;
+    gap: 6px;
+  }
+
+  .fab-button {
+    width: 36px;
+    height: 36px;
+  }
+
+  /* Popup moves above controls */
+  .building-info-popup {
+    bottom: auto;
+    top: 80px;
+    left: 10px;
+    right: 10px;
+    max-width: calc(100vw - 20px);
+  }
+
+  /* Route prompt stays at top but doesn't overlap floor picker */
+  .route-prompt {
+    left: 56px;
+    right: 56px;
+    transform: none;
+    max-width: calc(100% - 112px);
+  }
+
+  .route-prompt p {
+    font-size: 13px;
+  }
+}
+
+/* ===== Mobile ≤480px: Compact controls ===== */
+@media (max-width: 480px) {
+  .map-controls {
+    flex-wrap: nowrap;
+    gap: 6px;
+    padding: 6px 8px;
+    margin-bottom: 0;
+  }
+
+  .map-controls .btn {
+    padding: 6px 10px;
+    font-size: 12px;
+    min-height: 32px;
+    white-space: nowrap;
+  }
+
+  /* Hide secondary buttons on very small screens */
+  .map-controls .btn:nth-child(3) {
+    display: none;
+  }
+
+  .room-search-form {
+    display: none;
+  }
+
+  .room-search-message {
+    font-size: 12px;
+    padding: 4px 8px;
+  }
+
+  .wayfinding-panel h3 {
+    font-size: 14px;
+  }
+
+  .wayfinding-panel p,
+  .wayfinding-panel li {
+    font-size: 12px;
+  }
+
+  .map-wrapper {
+    height: calc(100vh - 180px);
+  }
+}
+
 /* ===== Tablet and Up: Side-by-side Layout ===== */
 @media (min-width: 768px) {
   .map-wrapper {
-    border-radius: 8px;
+    border-radius: 0;
   }
 
   .map-controls {
-    border-radius: 8px;
+    border-radius: 0;
     margin-bottom: 12px;
   }
 
   .map-display {
-    border: 1px solid #ccc;
-    border-radius: 8px;
+    border: 1px solid var(--smk-line);
+    border-radius: 0;
     height: calc(80vh - 120px);
   }
 
   .wayfinding-panel {
     margin-top: 12px;
-    border-radius: 8px;
-    border: 1px solid #ddd;
+    border-radius: 0;
+    border: 1px solid var(--smk-line);
   }
 
   /* Desktop drawer: slide from right */
@@ -1503,7 +1779,6 @@ export default {
     max-width: 90vw;
     left: auto;
     right: 0;
-    box-shadow: -4px 0 20px rgba(0, 0, 0, 0.2);
   }
 
   .drawer-enter-active .drawer-panel-inner,
@@ -1534,12 +1809,24 @@ export default {
 
   /* Larger FABs on desktop */
   .fab-button {
-    width: 56px;
-    height: 56px;
+    width: 52px;
+    height: 52px;
   }
 
-  .fab-button.fab-info {
-    right: 86px;
+  .level-button {
+    width: 44px !important;
+    height: 44px !important;
+  }
+
+  .fab-stack {
+    bottom: 20px;
+    right: 16px;
+    gap: 10px;
+  }
+
+  .level-buttons {
+    bottom: 20px;
+    left: 16px;
   }
 }
 
@@ -1571,44 +1858,23 @@ export default {
   }
 
   .fab-button {
-    width: 50px;
-    height: 50px;
-    bottom: 12px;
-    right: 12px;
+    width: 40px;
+    height: 40px;
   }
 
-  .fab-button.fab-info {
-    right: 72px;
+  .level-button {
+    width: 32px !important;
+    height: 32px !important;
+    font-size: 12px !important;
   }
 
-  .building-info-popup {
-    left: 12px;
-    right: 12px;
-    bottom: 70px;
-  }
-}
-
-/* ===== Small Mobile Optimization ===== */
-@media (max-width: 360px) {
-  .map-controls {
-    flex-direction: column;
-    align-items: stretch;
+  .level-buttons {
+    padding: 6px;
+    gap: 3px;
   }
 
-  .map-controls .btn,
-  .map-controls select {
-    width: 100%;
-  }
-
-  .fab-button {
-    width: 50px;
-    height: 50px;
-    bottom: 12px;
-    right: 12px;
-  }
-
-  .fab-button.fab-info {
-    right: 72px;
+  .fab-stack {
+    gap: 6px;
   }
 
   .building-info-popup {

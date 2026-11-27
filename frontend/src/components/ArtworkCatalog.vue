@@ -150,7 +150,7 @@ export default {
 .artwork-catalog h3 {
   margin: 0 0 12px;
   font-size: 16px;
-  color: #1a4d78;
+  color: var(--smk-ink);
   font-weight: 600;
 }
 
@@ -163,32 +163,50 @@ export default {
 .search-input {
   flex: 1;
   padding: 10px 14px;
-  border: 1px solid #ccc;
-  border-radius: 8px;
+  border: 1px solid var(--smk-line);
+  border-radius: 0;
   font-size: 14px;
   min-height: 44px;
+  font-family: inherit;
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: var(--smk-ink);
 }
 
 .btn {
-  padding: 10px 20px;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   min-height: 44px;
+  padding: 10px 20px;
+  border: 1px solid var(--smk-ink);
+  border-radius: 0;
+  background: var(--smk-ink);
+  color: var(--smk-paper);
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: none;
   -webkit-tap-highlight-color: transparent;
 }
 
-.btn-primary {
-  background-color: #007bff;
-  color: white;
+.btn:hover:not(:disabled) {
+  background: #333;
 }
 
-.btn-primary:hover:not(:disabled) {
-  background-color: #0056b3;
+.btn-secondary {
+  background: var(--smk-paper);
+  color: var(--smk-ink);
 }
 
-.btn-primary:disabled {
+.btn-secondary:hover:not(:disabled) {
+  background: var(--smk-surface);
+}
+
+.btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
@@ -198,20 +216,21 @@ export default {
 .no-results {
   text-align: center;
   padding: 24px 16px;
-  color: #666;
+  color: var(--smk-muted);
   font-size: 14px;
 }
 
 .error-state {
   padding: 16px;
-  background-color: #fff3f3;
-  border-radius: 8px;
+  background-color: var(--smk-surface);
+  border-radius: 0;
   margin-bottom: 16px;
+  border-left: 3px solid var(--smk-ink);
 }
 
 .error-state p {
   margin: 0;
-  color: #dc3545;
+  color: var(--smk-ink);
   font-size: 14px;
 }
 
@@ -224,23 +243,21 @@ export default {
 }
 
 .artwork-card {
-  border: 1px solid #e0e0e0;
-  border-radius: 8px;
+  border: 1px solid var(--smk-line);
+  border-radius: 0;
   overflow: hidden;
   cursor: pointer;
-  transition: transform 0.2s, box-shadow 0.2s;
-  background: white;
+  background: var(--smk-paper);
 }
 
 .artwork-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  border-color: var(--smk-ink);
 }
 
 .artwork-image-wrapper {
   width: 100%;
   aspect-ratio: 1;
-  background-color: #f5f5f5;
+  background-color: var(--smk-surface);
   overflow: hidden;
 }
 
@@ -258,7 +275,7 @@ export default {
   margin: 0 0 4px;
   font-size: 13px;
   font-weight: 600;
-  color: #333;
+  color: var(--smk-ink);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -267,7 +284,7 @@ export default {
 .artwork-artist {
   margin: 0 0 2px;
   font-size: 12px;
-  color: #666;
+  color: var(--smk-muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -276,7 +293,7 @@ export default {
 .artwork-year {
   margin: 0;
   font-size: 11px;
-  color: #999;
+  color: var(--smk-line);
 }
 
 /* Tablet and up */

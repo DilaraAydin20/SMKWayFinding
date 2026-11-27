@@ -77,7 +77,8 @@ export default {
     closeScanner: 'Close scanner',
     retry: 'Retry',
     loadError: 'Could not load OpenStreetMap data.',
-    retryingAutomatically: 'Will retry automatically…',
+    retryingAutomatically: 'Retrying…',
+    pleaseRetryManually: 'Please click Retry below.',
     currentLocation: 'Current location: {room}',
     scanToSetLocation: 'Scan a room QR code to set your location.',
     museumInfo: 'Museum information:',
@@ -98,6 +99,7 @@ export default {
     missingLevelConnector: 'The same stairs or elevator are not mapped on every floor; the nearest connector is used.',
     missingConnectors: 'No stairs or elevators are mapped on a floor; the nearest connector is used.',
     featureType: 'Type',
+    levelLabel: 'Level',
     featureTypes: {
       room: 'Room',
       corridor: 'Corridor',

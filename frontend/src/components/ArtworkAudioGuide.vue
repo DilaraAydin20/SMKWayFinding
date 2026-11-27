@@ -162,14 +162,14 @@ export default {
 .artwork-audio-panel {
   margin-top: 20px;
   padding: 15px;
-  background: white;
-  border-radius: 4px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  background: var(--smk-paper);
+  border-radius: 0;
+  border: 1px solid var(--smk-line);
 }
 
 .artwork-audio-panel h3 {
   margin-top: 0;
-  color: #1a4d78;
+  color: var(--smk-ink);
 }
 
 .artwork-audio-panel h4 {
@@ -200,6 +200,6 @@ export default {
 }
 
 .audio-error {
-  color: #a12622;
+  color: var(--smk-ink);
 }
 </style>
