@@ -401,7 +401,7 @@ h2 {
 
 .library-loading {
   text-align: center;
-  color: #6c75d;
+  color: #6c75d5;
   font-size: 14px;
   padding: 12px 0;
 }
