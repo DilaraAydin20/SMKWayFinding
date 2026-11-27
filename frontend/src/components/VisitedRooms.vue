@@ -1,3 +1,31 @@
+<script>
+import { useMuseumwayfinding } from '../stores/museumWayfinding.js'
+
+export default {
+  name: 'VisitedRooms',
+  data() {
+    return {
+      isExpanded: true,
+      store: useMuseumwayfinding()
+    }
+  },
+  computed: {
+    rooms() {
+      return this.store.visitedRooms
+    }
+  },
+  methods: {
+    getRoomName(roomId) {
+      const roomName = this.store.getCurrentRoomName(roomId)
+      return roomName === 'Unknown Room' ? this.$t('map.unknownRoom') : roomName
+    },
+    toggleExpand() {
+      this.isExpanded = !this.isExpanded
+    }
+  }
+}
+</script>
+
 <template>
   <div class="visited-rooms">
     <header class="visited-rooms-header" @click="toggleExpand">
@@ -6,7 +34,7 @@
           <circle cx="12" cy="12" r="10"></circle>
           <polyline points="12 6 12 12 16 14"></polyline>
         </svg>
-        {{ t('app.visitedRooms') }}
+        {{ $t('app.visitedRooms') }}
         <span class="room-count">{{ rooms.length }}</span>
       </h3>
       <svg class="expand-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -28,34 +56,13 @@
             <path d="M2 17l10 5 10-5"></path>
             <path d="M2 12l10 5 10-5"></path>
           </svg>
-          <p>{{ t('app.noRoomsVisited') }}</p>
-          <span class="empty-hint">{{ t('qr.instruction') }}</span>
+          <p>{{ $t('app.noRoomsVisited') }}</p>
+          <span class="empty-hint">{{ $t('qr.instruction') }}</span>
         </div>
       </div>
     </Transition>
   </div>
 </template>
-
-<script setup>
-import { ref, computed } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { useMuseumwayfinding } from '../store/museumWayfinding.js'
-
-const store = useMuseumwayfinding()
-const { t } = useI18n()
-const isExpanded = ref(true)
-
-const rooms = computed(() => store.visitedRooms)
-
-function getRoomName(roomId) {
-  const roomName = store.getCurrentRoomName(roomId)
-  return roomName === 'Unknown Room' ? t('map.unknownRoom') : roomName
-}
-
-function toggleExpand() {
-  isExpanded.value = !isExpanded.value
-}
-</script>
 
 <style scoped>
 .visited-rooms {

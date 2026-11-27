@@ -1,13 +1,16 @@
-<script setup>
-import { useI18n } from 'vue-i18n'
+<script>
 import OSMMap from '../components/OSMMap.vue'
 import VisitInformation from '../components/VisitInformation.vue'
-const { t } = useI18n()
+
+export default {
+  name: 'Homepage',
+  components: { OSMMap, VisitInformation }
+}
 </script>
 
 <template>
   <main class="app-main">
-    <section id="map" class="content-section" :aria-label="t('app.map')">
+    <section id="map" class="content-section" :aria-label="$t('app.map')">
       <OSMMap />
     </section>
 

@@ -1,30 +1,45 @@
-<script setup>
-import { useI18n } from 'vue-i18n'
+<script>
 import ArtworkAudioGuide from './ArtworkAudioGuide.vue'
-import { useMuseumwayfinding } from '../store/museumWayfinding.js'
+import { useMuseumwayfinding } from '../stores/museumWayfinding.js'
 
-const store = useMuseumwayfinding()
-const { t } = useI18n()
-
-function getRoomName(roomId) {
-  const roomName = store.getCurrentRoomName(roomId)
-  return roomName === 'Unknown Room' ? t('map.unknownRoom') : roomName
+export default {
+  name: 'VisitInformation',
+  components: { ArtworkAudioGuide },
+  data() {
+    return {
+      store: useMuseumwayfinding()
+    }
+  },
+  computed: {
+    visitedRooms() {
+      return this.store.visitedRooms
+    },
+    selectedArtwork() {
+      return this.store.selectedArtworkId ? this.store.selectedArtwork : null
+    }
+  },
+  methods: {
+    getRoomName(roomId) {
+      const roomName = this.store.getCurrentRoomName(roomId)
+      return roomName === 'Unknown Room' ? this.$t('map.unknownRoom') : roomName
+    }
+  }
 }
 </script>
 
 <template>
-  <aside class="sidebar" :aria-label="t('app.visitInformation')">
+  <aside class="sidebar" :aria-label="$t('app.visitInformation')">
     <div class="history-panel">
-      <h2>{{ t('app.visitedRooms') }}</h2>
+      <h2>{{ $t('app.visitedRooms') }}</h2>
       <ul v-if="store.visitedRooms.length > 0">
         <li v-for="roomId in store.visitedRooms" :key="roomId">
           {{ getRoomName(roomId) }}
         </li>
       </ul>
-      <p v-else class="empty-history">{{ t('app.noRoomsVisited') }}</p>
+      <p v-else class="empty-history">{{ $t('app.noRoomsVisited') }}</p>
     </div>
 
-    <ArtworkAudioGuide :artwork="store.selectedArtwork" />
+    <ArtworkAudioGuide v-if="selectedArtwork" :artwork="selectedArtwork" />
   </aside>
 </template>
 

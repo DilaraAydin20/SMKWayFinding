@@ -1,11 +1,22 @@
-<script setup>
-import { useI18n } from 'vue-i18n'
+<script>
 import { languageOptions, setLanguage } from '../i18n/index.js'
 
-const { locale, t } = useI18n()
-
-function updateLanguage(event) {
-  setLanguage(event.target.value)
+export default {
+  name: 'Header',
+  computed: {
+    locale() {
+      return this.$i18n.locale
+    },
+    t() {
+      return (key) => this.$t(key)
+    }
+  },
+  methods: {
+    languageOptions,
+    updateLanguage(event) {
+      setLanguage(event.target.value)
+    }
+  }
 }
 </script>
 

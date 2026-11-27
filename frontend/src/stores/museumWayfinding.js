@@ -4,10 +4,10 @@ export const useMuseumwayfinding = defineStore('museumwayfinding', {
   state: () => ({
     // Current user location (from QR code)
     currentLocation: null,
-    
+
     // List of all rooms in the museum
     rooms: [],
-    
+
     // List of artworks with their locations
     artworks: [ {
     id: 'test_artwork',
@@ -24,31 +24,31 @@ export const useMuseumwayfinding = defineStore('museumwayfinding', {
 
     // Artwork selected by scanning an artwork QR code
     selectedArtworkId: null,
-    
+
     // The route from current position to destination
     wayfindingRoute: [],
-    
+
     // Current level being displayed
     currentLevel: 0,
-    
+
     // Indicates if user is in a room (for QR code scanning)
     isInRoom: false,
-    
+
     // List of visited rooms for route history
     visitedRooms: []
   }),
-  
+
   actions: {
     // Set the current location from a scanned QR code
     setCurrentLocation(roomId) {
       this.currentLocation = roomId;
-      
+
       // Find room details
       const room = this.rooms.find(r => r.id === roomId);
       if (room) {
         this.currentLevel = room.level;
         this.isInRoom = true;
-        
+
         // Add to visited rooms list
         if (!this.visitedRooms.includes(roomId)) {
           this.visitedRooms.push(roomId);
@@ -57,7 +57,7 @@ export const useMuseumwayfinding = defineStore('museumwayfinding', {
         this.isInRoom = false;
       }
     },
-    
+
     // Set the destination artwork from a QR code scan
     setDestinationArtwork(artworkId) {
       this.selectedArtworkId = artworkId;
@@ -67,33 +67,48 @@ export const useMuseumwayfinding = defineStore('museumwayfinding', {
         this.calculateRouteToRoom(artwork.roomId);
       }
     },
-    
+
+    // Search artworks from backend API
+    async searchArtworks(query) {
+      try {
+        const response = await fetch(`/api/artworks?q=${encodeURIComponent(query)}`)
+        if (!response.ok) {
+          throw new Error(`Search failed: ${response.status}`)
+        }
+        const data = await response.json()
+        return data.results || []
+      } catch (error) {
+        console.error('Artwork search failed:', error)
+        return []
+      }
+    },
+
     // Calculate the wayfinding path between rooms
     calculateRouteToRoom(destinationRoomId) {
       // In a real implementation, we would use a graph-based routing algorithm
       // For now, just simulate with simple logic based on room connections
       const route = [];
-      
+
       if (this.currentLocation && this.rooms.length > 0) {
         const startRoom = this.rooms.find(r => r.id === this.currentLocation);
         const endRoom = this.rooms.find(r => r.id === destinationRoomId);
-        
+
         // For demo purposes, we'll just add a simple path
         route.push(startRoom);
         if (startRoom && endRoom) {
           // Add intermediate rooms to the path - in real app would be more complex logic
           const roomConnections = this.getRoomConnections();
-          
+
           // Simple example: direct connection between start and destination
           if (roomConnections[startRoom.id] && roomConnections[startRoom.id].includes(endRoom.id)) {
             route.push(endRoom);
           }
         }
       }
-      
+
       this.wayfindingRoute = route;
     },
-    
+
     // Get connections between rooms (simplified)
     getRoomConnections() {
       // In a real app, this would be based on OSM data
@@ -103,7 +118,7 @@ export const useMuseumwayfinding = defineStore('museumwayfinding', {
         3: [2, 4]  // Room 3 connects to rooms 2 and 4
       };
     },
-    
+
     // Reset wayfinding state
     resetwayfinding() {
       this.wayfindingRoute = [];
@@ -111,7 +126,7 @@ export const useMuseumwayfinding = defineStore('museumwayfinding', {
       this.isInRoom = false;
     }
   },
-  
+
   getters: {
     // Get current room name by ID
     getCurrentRoomName: (state) => (roomId) => {

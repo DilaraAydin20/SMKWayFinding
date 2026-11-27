@@ -1,43 +1,56 @@
-<script setup>
-import { ref } from 'vue'
-import { useI18n } from 'vue-i18n'
+<script>
 import { languageOptions } from '../i18n/index.js'
 
-const props = defineProps({
-  open: {
-    type: Boolean,
-    required: true
+export default {
+  name: 'LanguageDialog',
+  props: {
+    open: {
+      type: Boolean,
+      required: true
+    }
+  },
+  data() {
+    return {
+      pendingLanguage: this.$i18n.locale
+    }
+  },
+  watch: {
+    open() {
+      // re-sync when dialog opens
+    }
+  },
+  computed: {
+    languageOptions() {
+      return languageOptions
+    }
+  },
+  methods: {
+    confirmLanguage() {
+      this.$emit('confirm', this.pendingLanguage)
+    }
   }
-})
-
-const emit = defineEmits(['confirm'])
-const { locale, t } = useI18n()
-const pendingLanguage = ref(locale.value)
-
-function confirmLanguage() {
-  emit('confirm', pendingLanguage.value)
 }
 </script>
 
 <template>
   <Teleport to="body">
-    <div v-if="props.open" class="language-dialog-backdrop">
+    <div v-if="open" class="language-dialog-backdrop">
       <section
         class="language-dialog"
         role="dialog"
         aria-modal="true"
         aria-labelledby="language-dialog-title"
       >
-        <h2 id="language-dialog-title">{{ t('app.chooseLanguage') }}</h2>
-        <p>{{ t('app.languageIntro') }}</p>
-        <label for="initial-language">{{ t('app.language') }}</label>
+        <h2 id="language-dialog-title">{{ $t('app.chooseLanguage') }}</h2>
+        <p>{{ $t('app.languageIntro') }}</p>
+        <label for="initial-language">{{ $t('app.language') }}</label>
         <select id="initial-language" v-model="pendingLanguage">
           <option v-for="language in languageOptions" :key="language.code" :value="language.code">
             {{ language.name }}
           </option>
         </select>
         <button type="button" class="language-confirm" @click="confirmLanguage">
-          {{ t('app.continue') }}
+          {{ $t('app.continue') }}
         </button>
       </section>
     </div>

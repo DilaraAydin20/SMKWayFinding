@@ -1,14 +1,22 @@
-<script setup>
-import { ref } from 'vue'
+<script>
 import Header from './components/Header.vue'
 import LanguageDialog from './components/LanguageDialog.vue'
 import { languageStorageKey, isSupportedLanguage, setLanguage as updateLanguage } from './i18n/index.js'
 
-const languageDialogOpen = ref(!isSupportedLanguage(localStorage.getItem(languageStorageKey)))
-
-function setLanguage(language) {
-  if (!updateLanguage(language)) return
-  languageDialogOpen.value = false
+export default {
+  name: 'App',
+  components: { Header, LanguageDialog },
+  data() {
+    return {
+      languageDialogOpen: !isSupportedLanguage(localStorage.getItem(languageStorageKey))
+    }
+  },
+  methods: {
+    setLanguage(language) {
+      if (!updateLanguage(language)) return
+      this.languageDialogOpen = false
+    }
+  }
 }
 </script>
 

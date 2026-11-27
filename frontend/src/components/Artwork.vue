@@ -1,75 +1,87 @@
-<script setup>
-import { computed, onMounted, ref } from 'vue'
+<script>
+import { onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { artworksPerPage, getArtworkCounts, getArtworks, hasArtworkDescription } from '../data/smk-api.js'
 import ArtworkAudioGuide from './ArtworkAudioGuide.vue'
 import noImage from '../images/noimage.png'
 
-const { t } = useI18n()
-const artworks = ref([])
-const currentPage = ref(1)
-const retryPage = ref(1)
-const onDisplayCount = ref(0)
-const notOnDisplayCount = ref(0)
-const countsLoaded = ref(false)
-const isLoading = ref(false)
-const loadError = ref(false)
-const selectedArtwork = ref(null)
-const totalPages = computed(() => Math.ceil(
-  (onDisplayCount.value + notOnDisplayCount.value) / artworksPerPage
-))
-const visiblePages = computed(() => {
-  const firstPage = Math.max(1, currentPage.value - 1)
-  const lastPage = Math.min(totalPages.value, currentPage.value + 1)
-  const pages = []
-
-  if (firstPage > 1) pages.push(1)
-  if (firstPage > 2) pages.push(null)
-  for (let page = firstPage; page <= lastPage; page += 1) pages.push(page)
-  if (lastPage < totalPages.value - 1) pages.push(null)
-  if (lastPage < totalPages.value) pages.push(totalPages.value)
-
-  return pages
-})
-
-async function getPageArtworks(page) {
-  const pageOffset = (page - 1) * artworksPerPage
-  const displayedOnPage = Math.max(
-    0,
-    Math.min(artworksPerPage, onDisplayCount.value - pageOffset)
-  )
-  const pageArtworks = displayedOnPage > 0
-    ? await getArtworks(pageOffset, true, displayedOnPage)
-    : []
-  const remainingSlots = artworksPerPage - pageArtworks.length
-
-  if (remainingSlots === 0) return pageArtworks
-
-  const notOnDisplayOffset = Math.max(0, pageOffset - onDisplayCount.value)
-  const notDisplayedArtworks = await getArtworks(notOnDisplayOffset, false, remainingSlots)
-  return [...pageArtworks, ...notDisplayedArtworks]
-}
-
-async function loadPage(page) {
-  if (isLoading.value) return
-  if (countsLoaded.value && (page < 1 || page > totalPages.value)) return
-
-  isLoading.value = true
-  loadError.value = false
-
-  try {
-    if (!countsLoaded.value) {
-      const counts = await getArtworkCounts()
-      onDisplayCount.value = counts.onDisplay
-      notOnDisplayCount.value = counts.notOnDisplay
-      countsLoaded.value = true
+export default {
+  name: 'Artwork',
+  components: { ArtworkAudioGuide },
+  data() {
+    return {
+      artworks: [],
+      currentPage: 1,
+      retryPage: 1,
+      onDisplayCount: 0,
+      notOnDisplayCount: 0,
+      countsLoaded: false,
+      isLoading: false,
+      loadError: false,
+      selectedArtwork: null,
+      _t: null // will be set in mounted
     }
+  },
+  computed: {
+    totalPages() {
+      return Math.ceil((this.onDisplayCount + this.notOnDisplayCount) / artworksPerPage)
+    },
+    visiblePages() {
+      const firstPage = Math.max(1, this.currentPage - 1)
+      const lastPage = Math.min(this.totalPages, this.currentPage + 1)
+      const pages = []
 
-    if (totalPages.value === 0) {
-      artworks.value = []
-      currentPage.value = 1
-      return
+      if (firstPage > 1) pages.push(1)
+      if (firstPage > 2) pages.push(null)
+      for (let page = firstPage; page <= lastPage; page += 1) pages.push(page)
+      if (lastPage < this.totalPages - 1) pages.push(null)
+      if (lastPage < this.totalPages) pages.push(this.totalPages)
+
+      return pages
     }
+  },
+  methods: {
+    t(key, params) {
+      if (this._t) return this._t(key, params)
+      return key // fallback
+    },
+    async getPageArtworks(page) {
+      const pageOffset = (page - 1) * artworksPerPage
+      const displayedOnPage = Math.max(
+        0,
+        Math.min(artworksPerPage, this.onDisplayCount - pageOffset)
+      )
+      const pageArtworks = displayedOnPage > 0
+        ? await getArtworks(pageOffset, true, displayedOnPage)
+        : []
+      const remainingSlots = artworksPerPage - pageArtworks.length
+
+      if (remainingSlots === 0) return pageArtworks
+
+      const notOnDisplayOffset = Math.max(0, pageOffset - this.onDisplayCount)
+      const notDisplayedArtworks = await getArtworks(notOnDisplayOffset, false, remainingSlots)
+      return [...pageArtworks, ...notDisplayedArtworks]
+    },
+    async loadPage(page) {
+      if (this.isLoading) return
+      if (this.countsLoaded && (page < 1 || page > this.totalPages)) return
+
+      this.isLoading = true
+      this.loadError = false
+
+      try {
+        if (!this.countsLoaded) {
+          const counts = await getArtworkCounts()
+          this.onDisplayCount = counts.onDisplay
+          this.notOnDisplayCount = counts.notOnDisplay
+          this.countsLoaded = true
+        }
+
+        if (this.totalPages === 0) {
+          this.artworks = []
+          this.currentPage = 1
+          return
+        }
 
     const requestedPage = Math.min(Math.max(page, 1), totalPages.value)
     retryPage.value = requestedPage
