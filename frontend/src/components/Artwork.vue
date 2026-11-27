@@ -1,7 +1,7 @@
 <script>
 import { onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { artworksPerPage, getArtworkCounts, getArtworks } from '../data/smk-api.js'
+import { artworksPerPage, getArtworkCounts, getArtworks, hasArtworkDescription } from '../data/smk-api.js'
 import ArtworkAudioGuide from './ArtworkAudioGuide.vue'
 import noImage from '../images/noimage.png'
 
@@ -83,46 +83,57 @@ export default {
           return
         }
 
-        const requestedPage = Math.min(Math.max(page, 1), this.totalPages)
-        this.retryPage = requestedPage
-        this.artworks = await this.getPageArtworks(requestedPage)
-        this.currentPage = requestedPage
+    const requestedPage = Math.min(Math.max(page, 1), totalPages.value)
+    retryPage.value = requestedPage
+    artworks.value = await getPageArtworks(requestedPage)
+    const pageArtworks = artworks.value
+
+async function checkDescriptions() {
+  const batchSize = 5
+
+  for (let i = 0; i < pageArtworks.length; i += batchSize) {
+    const batch = pageArtworks.slice(i, i + batchSize)
+
+    await Promise.all(batch.map(async artwork => {
+      try {
+        artwork.hasDescription = await hasArtworkDescription(artwork.object_number)
       } catch (error) {
-        console.error('Could not load artworks:', error)
-        this.loadError = true
-      } finally {
-        this.isLoading = false
+        console.error('Kunne ikke kontrollere beskrivelse:', error)
+        artwork.hasDescription = false
       }
-    },
-    artworkTitle(artwork) {
-      const title = artwork.titles?.find(item => item?.title)?.title
-      return title || artwork.object_number || ''
-    },
-    artworkArtist(artwork) {
-      return (artwork.artist || [])
-        .map(artist => typeof artist === 'string' ? artist : artist?.name || artist?.artist || '')
-        .filter(Boolean)
-        .join(', ')
-    },
-    artworkYear(artwork) {
-      const date = artwork.production_date?.[0]
-      if (typeof date === 'string') return date
-      return date?.display || date?.date || date?.earliest || ''
-    }
-  },
-  mounted() {
-    // Get i18n t function from global vue instance
-    const app = this.$root
-    this._t = (key, params) => {
-      if (app.$t) return app.$t(key, params)
-      return key
-    }
-    onMounted(() => this.loadPage(1))
-  },
-  beforeUnmount() {
-    // cleanup if needed
+    }))
   }
 }
+
+void checkDescriptions()
+    currentPage.value = requestedPage
+  } catch (error) {
+    console.error('Could not load artworks:', error)
+    loadError.value = true
+  } finally {
+    isLoading.value = false
+  }
+}
+
+function artworkTitle(artwork) {
+  const title = artwork.titles?.find(item => item?.title)?.title
+  return title || artwork.object_number || ''
+}
+
+function artworkArtist(artwork) {
+  return (artwork.artist || [])
+    .map(artist => typeof artist === 'string' ? artist : artist?.name || artist?.artist || '')
+    .filter(Boolean)
+    .join(', ')
+}
+
+function artworkYear(artwork) {
+  const date = artwork.production_date?.[0]
+  if (typeof date === 'string') return date
+  return date?.display || date?.date || date?.earliest || ''
+}
+
+onMounted(() => loadPage(1))
 </script>
 
 <template>
@@ -135,7 +146,8 @@ export default {
   </section>
 
   <section id="artwork" :aria-label="t('artwork.ariaLabel')">
-    <article v-for="(artwork, index) in artworks" :key="artwork.object_number || index" class="card">
+    <article v-for="(artwork, index) in artworks" :key="artwork.object_number || index" class="card"> 
+
       <img
         class="cardImage"
         :src="artwork.image_thumbnail || noImage"
@@ -156,9 +168,14 @@ export default {
         target="_blank"
         rel="noopener noreferrer"
       >{{ t('artwork.viewOnSmk') }}</a>
-      <button class="cardDescBtn" type="button" @click="selectedArtwork = artwork">
-        {{ t('artwork.viewDescription') }}
-      </button>
+    <button
+  v-if="artwork.hasDescription"
+  class="cardDescBtn"
+  type="button"
+  @click="selectedArtwork = artwork"
+>
+  {{ t('artwork.viewDescription') }}
+</button>
     </article>
   </section>
 
