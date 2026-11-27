@@ -173,6 +173,75 @@ select {
   }
 }
 
+/* ===== Shared Button System (global, non-scoped) ===== */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 10px 20px;
+  border: 1px solid var(--smk-ink);
+  border-radius: 0;
+  background: var(--smk-ink);
+  color: var(--smk-paper);
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.btn:hover:not(:disabled) {
+  background: #333;
+}
+
+.btn-primary {
+  background: var(--smk-ink);
+  color: var(--smk-paper);
+}
+
+.btn-secondary {
+  background: var(--smk-paper);
+  color: var(--smk-ink);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: var(--smk-surface);
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ===== Shared Status / Error / Success Indicators (global, non-scoped) ===== */
+.status-indicator {
+  padding: 12px 16px;
+  border-left: 3px solid var(--smk-ink);
+  background: var(--smk-surface);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.status-error {
+  padding: 12px 16px;
+  border-left: 3px solid var(--smk-ink);
+  background: var(--smk-surface);
+  color: var(--smk-ink);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.status-success {
+  padding: 12px 16px;
+  border-left: 3px solid var(--smk-ink);
+  background: var(--smk-paper);
+  color: var(--smk-ink);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
 @media print {
   .fab-button,
   .scanner-drawer-overlay,

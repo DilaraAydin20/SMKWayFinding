@@ -72,7 +72,7 @@ export default {
 
         <p v-if="error" class="auth-error">{{ error }}</p>
 
-        <button type="submit" class="btn-auth btn-primary">
+        <button type="submit" class="btn">
           {{ t('auth.loginBtn') }}
         </button>
       </form>
@@ -128,7 +128,7 @@ export default {
 .auth-field input {
   width: 100%;
   padding: 10px 12px;
-  border: 1px solid #858581;
+  border: 1px solid var(--smk-line);
   border-radius: 0;
   background: var(--smk-paper);
   color: var(--smk-ink);
@@ -145,36 +145,11 @@ export default {
   margin: 0;
   padding: 10px 12px;
   font-size: 0.9rem;
-  color: #b91c1c;
-  background: #fef2f2;
-  border: 1px solid #fecaca;
+  color: var(--smk-ink);
+  background: var(--smk-surface);
+  border-left: 3px solid var(--smk-ink);
 }
 
-.btn-auth {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 44px;
-  padding: 10px 24px;
-  font-size: 16px;
-  font-weight: 600;
-  border: none;
-  cursor: pointer;
-}
-
-.btn-primary {
-  background: var(--smk-ink);
-  color: var(--smk-paper);
-}
-
-.btn-primary:hover:not(:disabled) {
-  opacity: 0.85;
-}
-
-.btn-primary:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
 
 .auth-switch {
   margin: 20px 0 0;

@@ -44,7 +44,7 @@ export default {
 </script>
 
 <template>
-  <section style="padding: 16px">
+  <section class="temp-search-section">
     <label for="temp-search">{{ $t('search.label') }}</label>
     <input id="temp-search" v-model="query" @keyup.enter="search" />
     <button type="button" :disabled="loading" @click="search">
@@ -56,3 +56,24 @@ export default {
     <ArtworkAudioGuide v-if="artwork" :artwork="artwork" />
   </section>
 </template>
+
+<style scoped>
+.temp-search-section {
+  padding: 16px;
+}
+
+.temp-search-section label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+
+.temp-search-section input {
+  width: 100%;
+  margin-bottom: 8px;
+}
+
+.temp-search-section button {
+  margin-bottom: 12px;
+}
+</style>

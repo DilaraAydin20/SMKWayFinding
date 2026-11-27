@@ -77,7 +77,8 @@ export default {
     closeScanner: 'Luk scanner',
     retry: 'Prøv igen',
     loadError: 'OpenStreetMap-data kunne ikke indlæses.',
-    retryingAutomatically: 'Prøver automatisk igen…',
+    retryingAutomatically: 'Prøver igen…',
+    pleaseRetryManually: 'Klik på Prøv igen nedenfor.',
     currentLocation: 'Nuværende placering: {room}',
     scanToSetLocation: 'Scan en QR-kode i et rum for at angive din placering.',
     museumInfo: 'Museumsinformation:',
@@ -98,6 +99,7 @@ export default {
     missingLevelConnector: 'Samme trappe eller elevator er ikke kortlagt på alle etager. Den nærmeste forbindelse bruges.',
     missingConnectors: 'Der er ingen kortlagte trapper eller elevatorer på en etage. Den nærmeste forbindelse bruges.',
     featureType: 'Type',
+    levelLabel: 'Etage',
     featureTypes: {
       room: 'Rum',
       corridor: 'Gang',

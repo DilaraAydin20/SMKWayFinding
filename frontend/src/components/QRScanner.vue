@@ -243,7 +243,7 @@ export default {
       <!-- Error display -->
       <Transition name="fade" mode="out-in">
         <div v-if="scanError" key="error" class="scan-error">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#dc3545" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="12" r="10"/>
             <path :d="warningCirclePath"/>
           </svg>
@@ -281,7 +281,7 @@ export default {
 h2 {
   margin: 0 0 16px 0;
   font-size: 18px;
-  color: #1a4d78;
+  color: var(--smk-ink);
 }
 
 .scanner-controls {
@@ -296,7 +296,7 @@ h2 {
 .scanner-controls p {
   font-size: 15px;
   line-height: 1.5;
-  color: #666;
+  color: var(--smk-muted);
   margin: 0;
 }
 
@@ -311,7 +311,7 @@ h2 {
 .status-badge {
   font-size: 14px;
   padding: 8px 16px;
-  border-radius: 20px;
+  border-radius: 0;
   font-weight: 500;
   text-align: center;
   width: fit-content;
@@ -321,24 +321,27 @@ h2 {
 }
 
 .status-loading {
-  background-color: #fff3cd;
-  color: #856404;
+  background-color: var(--smk-surface);
+  color: var(--smk-ink);
+  border-left: 3px solid var(--smk-ink);
 }
 
 .status-error {
-  background-color: #f8d7da;
-  color: #721c24;
+  background-color: var(--smk-surface);
+  color: var(--smk-ink);
+  border-left: 3px solid var(--smk-ink);
 }
 
 .status-success {
-  background-color: #d4edda;
-  color: #155724;
+  background-color: var(--smk-paper);
+  color: var(--smk-ink);
+  border-left: 3px solid var(--smk-ink);
 }
 
 .scanner-video {
   width: 100%;
   max-width: 100%;
-  border-radius: 12px;
+  border-radius: 0;
   object-fit: cover;
   background-color: #000;
   aspect-ratio: 4/3;
@@ -354,44 +357,47 @@ h2 {
   padding: 8px 0;
 }
 
-.scanning-controls .btn {
-  min-width: 120px;
-}
-
 .scan-error,
 .scan-result {
   width: 100%;
   text-align: left;
   padding: 16px;
-  border-radius: 12px;
+  border-radius: 0;
   font-size: 15px;
   margin-top: 8px;
   line-height: 1.5;
 }
 
 .scan-error {
-  background-color: #fff3f3;
-  color: #dc3545;
+  background-color: var(--smk-surface);
+  color: var(--smk-ink);
   display: flex;
   align-items: center;
   gap: 10px;
+  border-left: 3px solid var(--smk-ink);
+}
+
+.scan-error svg {
+  stroke: var(--smk-ink);
+  flex-shrink: 0;
 }
 
 .scan-result {
-  background-color: #e9f7ef;
-  color: #1a4d78;
+  background-color: var(--smk-surface);
+  color: var(--smk-ink);
 }
 
 .scan-result h3 {
   margin: 0 0 12px 0;
   font-size: 18px;
-  color: #28a745;
+  color: var(--smk-ink);
 }
 
 .scan-result pre {
-  background: #f8f9fa;
+  background: var(--smk-surface);
   padding: 12px;
-  border-radius: 8px;
+  border-radius: 0;
+  border: 1px solid var(--smk-line);
   word-break: break-all;
   font-family: monospace;
   margin-top: 12px;
@@ -401,45 +407,51 @@ h2 {
 
 .library-loading {
   text-align: center;
-  color: #6c75d5;
+  color: var(--smk-muted);
   font-size: 14px;
   padding: 12px 0;
 }
 
 .scan-result .success {
-  color: #28a745;
+  color: var(--smk-ink);
   font-weight: 600;
   margin-bottom: 0;
 }
 
 .btn {
-  padding: 12px 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 10px 20px;
+  border: 1px solid var(--smk-ink);
+  border-radius: 0;
+  background: var(--smk-ink);
+  color: var(--smk-paper);
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 700;
   cursor: pointer;
-  border: none;
-  border-radius: 8px;
-  font-size: 16px;
-  transition: opacity 0.2s, background-color 0.2s;
-  min-height: 48px;
+  text-decoration: none;
   -webkit-tap-highlight-color: transparent;
-  font-weight: 500;
 }
 
 .btn:hover:not(:disabled) {
-  opacity: 0.9;
-}
-
-.btn:active:not(:disabled) {
-  transform: scale(0.98);
-}
-
-.btn-primary {
-  background-color: #28a745;
-  color: white;
+  background: #333;
 }
 
 .btn-secondary {
-  background-color: #dc3545;
-  color: white;
+  background: var(--smk-paper);
+  color: var(--smk-ink);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: var(--smk-surface);
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 @media (max-width: 400px) {
@@ -478,7 +490,7 @@ h2 {
 
   .scanner-video {
     max-width: 480px;
-    border-radius: 12px;
+    border-radius: 0;
   }
 
   .scan-error,
