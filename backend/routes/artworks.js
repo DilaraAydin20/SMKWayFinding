@@ -40,8 +40,17 @@ router.get('/', async (req, res) => {
       order: [['title', 'ASC']]
     })
 
+    // Only include current_location_name if the search query is about location
+    const locationKeywords = ['location', 'place', 'room', 'sted', 'plads', 'stelle']
+    const searchLower = (q || '').toLowerCase()
+    const includeLocation = locationKeywords.some(kw => searchLower.includes(kw))
+
     res.json({
-      artworks: rows.map(a => a.get({ plain: true })),
+      artworks: rows.map(a => {
+        const art = a.get({ plain: true })
+        if (!includeLocation) delete art.current_location_name
+        return art
+      }),
       total: count,
       page: parseInt(page, 10),
       totalPages: Math.ceil(count / parseInt(limit, 10))

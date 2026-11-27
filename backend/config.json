@@ -1,0 +1,10 @@
+{
+  "development": {
+    "dialect": "mysql",
+    "host": "localhost",
+    "port": 3306,
+    "database": "smk_wayfinding",
+    "username": "root",
+    "password": "SuperSecret2026"
+  }
+}
