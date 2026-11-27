@@ -825,6 +825,25 @@ function scheduleRetry() {
 }
 
 async function fetchIndoorData(signal) {
+
+  const cacheKey = 'smk-indoor-data'
+const cacheDuration = 24 * 60 * 60 * 1000
+
+try {
+  const cachedData = JSON.parse(localStorage.getItem(cacheKey))
+
+  if (
+    cachedData &&
+    Array.isArray(cachedData.data?.elements) &&
+    Date.now() - cachedData.timestamp < cacheDuration
+  ) {
+    console.log('Loading indoor data from cache')
+    processOSMData(cachedData.data)
+    return
+  }
+} catch (error) {
+  console.warn('Could not load cached indoor data:', error)
+}
   // Overpass API query for indoor mapping around SMK (55.6887, 12.5783)
   // This queries all ways with indoor tags in the area
   const overpassQuery = `
@@ -904,6 +923,16 @@ async function fetchIndoorData(signal) {
 
   // Process the ways and nodes from OSM data
   processOSMData(data)
+
+  // Save indoor data to cache
+  try {
+    localStorage.setItem(cacheKey, JSON.stringify({
+      data: data,
+      timestamp: Date.now()
+    }))
+  } catch (error) {
+    console.warn('Could not cache indoor data:', error)
+  }
 }
 
 function processOSMData(osmData) {

@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { artworksPerPage, getArtworkCounts, getArtworks, hasArtworkDescription, rows } from '../data/smk-api.js'
+import { artworksPerPage, getArtworkCounts, getArtworks, hasArtworkDescription } from '../data/smk-api.js'
 import ArtworkAudioGuide from './ArtworkAudioGuide.vue'
 import noImage from '../images/noimage.png'
 
@@ -74,6 +74,26 @@ async function loadPage(page) {
     const requestedPage = Math.min(Math.max(page, 1), totalPages.value)
     retryPage.value = requestedPage
     artworks.value = await getPageArtworks(requestedPage)
+    const pageArtworks = artworks.value
+
+async function checkDescriptions() {
+  const batchSize = 5
+
+  for (let i = 0; i < pageArtworks.length; i += batchSize) {
+    const batch = pageArtworks.slice(i, i + batchSize)
+
+    await Promise.all(batch.map(async artwork => {
+      try {
+        artwork.hasDescription = await hasArtworkDescription(artwork.object_number)
+      } catch (error) {
+        console.error('Kunne ikke kontrollere beskrivelse:', error)
+        artwork.hasDescription = false
+      }
+    }))
+  }
+}
+
+void checkDescriptions()
     currentPage.value = requestedPage
   } catch (error) {
     console.error('Could not load artworks:', error)
