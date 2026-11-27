@@ -1,5 +1,6 @@
 <script>
 import { languageOptions, setLanguage } from '../i18n/index.js'
+import { useAuthStore } from '../stores/auth.js'
 
 export default {
   name: 'Header',
@@ -9,12 +10,19 @@ export default {
     },
     t() {
       return (key) => this.$t(key)
+    },
+    auth() {
+      return useAuthStore()
     }
   },
   methods: {
     languageOptions,
     updateLanguage(event) {
       setLanguage(event.target.value)
+    },
+    handleLogout() {
+      this.auth.logout()
+      this.$router.push('/login')
     }
   }
 }
@@ -30,14 +38,20 @@ export default {
       <RouterLink to="/#map">{{ t('app.map') }}</RouterLink>
       <RouterLink to="/artworks">{{ t('app.artworks') }}</RouterLink>
     </nav>
-    <label class="language-switcher">
-      <span>{{ t('app.language') }}</span>
-      <select :value="locale" :aria-label="t('app.language')" @change="updateLanguage">
-        <option v-for="language in languageOptions" :key="language.code" :value="language.code">
-          {{ language.name }}
-        </option>
-      </select>
-    </label>
+    <div class="header-actions">
+      <label class="language-switcher">
+        <span>{{ t('app.language') }}</span>
+        <select :value="locale" :aria-label="t('app.language')" @change="updateLanguage">
+          <option v-for="language in languageOptions" :key="language.code" :value="language.code">
+            {{ language.name }}
+          </option>
+        </select>
+      </label>
+      <span v-if="auth.isAuthenticated" class="auth-status">
+        <button class="btn-auth-link" @click="handleLogout">{{ t('auth.logout') }}</button>
+      </span>
+      <RouterLink v-else to="/login" class="auth-link">{{ t('auth.login') }}</RouterLink>
+    </div>
   </header>
 </template>
 
@@ -100,6 +114,12 @@ export default {
   text-decoration: underline;
 }
 
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
 .language-switcher {
   display: inline-flex;
   align-items: center;
@@ -113,6 +133,44 @@ export default {
   min-height: 40px;
   padding: 6px 30px 6px 10px;
   font-size: 0.9rem;
+}
+
+.auth-status {
+  display: inline-flex;
+  align-items: center;
+}
+
+.btn-auth-link {
+  min-height: 40px;
+  padding: 6px 12px;
+  background: none;
+  border: 1px solid var(--smk-line);
+  color: var(--smk-ink);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.btn-auth-link:hover {
+  background: var(--smk-surface);
+}
+
+.auth-link {
+  min-height: 40px;
+  padding: 6px 12px;
+  display: inline-flex;
+  align-items: center;
+  color: var(--smk-ink);
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-decoration: none;
+  border: 1px solid var(--smk-line);
+}
+
+.auth-link:hover {
+  background: var(--smk-surface);
+  text-decoration: underline;
 }
 
 @media (max-width: 480px) {
@@ -154,6 +212,10 @@ export default {
     min-height: 36px;
     padding: 5px 25px 5px 8px;
     font-size: 0.85rem;
+  }
+
+  .header-actions {
+    gap: 8px;
   }
 }
 </style>
