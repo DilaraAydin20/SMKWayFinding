@@ -3,16 +3,16 @@ import sequelize from '../config/db.js'
 
 const Artwork = sequelize.define('Artwork', {
   smk_id: {
-    type: DataTypes.STRING(20),
+    type: DataTypes.STRING(255),
     primaryKey: true,
     allowNull: false
   },
   title: {
-    type: DataTypes.STRING(2000),
+    type: DataTypes.TEXT,
     allowNull: true
   },
   artist: {
-    type: DataTypes.STRING(200),
+    type: DataTypes.TEXT,
     allowNull: true
   },
   year: {
@@ -54,10 +54,7 @@ const Artwork = sequelize.define('Artwork', {
   tableName: 'artworks',
   timestamps: false,
   indexes: [
-    { fields: ['smk_id'] },
-    { fields: ['title'] },
-    { fields: ['artist'] },
-    { fields: ['current_location_name'] }
+    { fields: ['smk_id'] }
   ]
 })
 

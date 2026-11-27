@@ -5,13 +5,15 @@ import { pipeline } from 'node:stream/promises'
 import { createHash } from 'node:crypto'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import sequelize from './config/db.js'
+import sequelize, { ensureDatabase } from './config/db.js'
 import Artwork from './models/Artwork.js'
 import Room from './models/Room.js'
 import ArtworkRoomMapping from './models/ArtworkRoomMapping.js'
 import UserVisit from './models/UserVisit.js'
 import SyncLog from './models/SyncLog.js'
+import User from './models/User.js'
 import syncRouter from './routes/admin.js'
+import authRouter from './routes/auth.js'
 import { syncFromSmkApi } from './scripts/sync-smk.js'
 
 const app = express()
@@ -112,6 +114,7 @@ app.post('/api/translate', async (req, res) => {
 // --- API Routes ---
 app.use('/api/artworks', await import('./routes/artworks.js').then(m => m.default))
 app.use('/api/rooms', await import('./routes/rooms.js').then(m => m.default))
+app.use('/api/auth', authRouter)
 app.use('/api/admin', syncRouter)
 
 // --- TTS (ElevenLabs) ---
@@ -178,6 +181,7 @@ app.use(express.static(frontendBuildPath))
 // --- Start server ---
 async function startServer() {
   try {
+    await ensureDatabase()
     await sequelize.authenticate()
     console.log('MySQL connected successfully.')
 
