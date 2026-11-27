@@ -303,12 +303,6 @@ function closeDrawer() {
   drawerOpen.value = false
 }
 
-// Remove existing map before initializing a new one
-if (osmMapInstance?.map) {
-  osmMapInstance.map.remove()
-  osmMapInstance = null
-}
-
 function toggleBuildingInfo() {
   showBuildingInfo.value = !showBuildingInfo.value
 }
@@ -750,11 +744,8 @@ async function loadOSMData() {
     // Initialize the map container with SMK coordinates from OSM node reference
     const center = [55.6887, 12.5783] // Based on real OSM Node: 13947795305 (the building entrance)
     
-     // Remove existing map before initializing a new one
-if (osmMapInstance?.map) {
-  osmMapInstance.map.remove()
-  osmMapInstance = null
-}
+// Initialize map only if it does not exist
+if (!osmMapInstance?.map) {
     osmMapInstance = {
       map: L.map('osm-map', {
         center: center,
@@ -784,7 +775,7 @@ if (osmMapInstance?.map) {
       infoControlApp = null
     }
     infoControl.addTo(osmMapInstance.map);
-
+}
     // Floor buttons are displayed over the map.
 
     // Query Overpass API for indoor mapping data around SMK
