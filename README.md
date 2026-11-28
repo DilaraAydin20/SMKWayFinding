@@ -54,7 +54,7 @@ npx -y @elevenlabs/cli@latest onboard init
 npm run dev
 ```
 
-The onboarding command stores `ELEVENLABS_API_KEY` in the ignored `.env.local` file. Do not expose it through a `VITE_` variable or commit it. The development command runs Vite and the Express backend; open http://localhost:3000.
+Run these commands from the repository root. `npm install` installs dependencies for both workspaces, and `npm run dev` starts Vite and the Express backend together; open http://localhost:3000. The onboarding command stores `ELEVENLABS_API_KEY` in the ignored `.env.local` file. Do not expose it through a `VITE_` variable or commit it.
 
 To enable artwork-description translations in development, add the DeepL key to the ignored `.env.local` file:
 

@@ -3,13 +3,20 @@
   "version": "0.0.0",
   "private": true,
   "description": "Museum Wayfinding App for SMK (Statens Museum for Kunst)",
+  "workspaces": [
+    "frontend",
+    "backend"
+  ],
   "scripts": {
     "dev:frontend": "cd frontend && npm run dev",
     "dev:backend": "cd backend && npm run dev",
-    "dev": "npm run dev:frontend & npm run dev:backend",
+    "dev": "concurrently --kill-others --names frontend,backend \"npm run dev:frontend\" \"npm run dev:backend\"",
     "build": "cd frontend && npm run build",
     "start": "cd backend && npm start",
     "sync": "cd backend && npm run sync",
     "db:migrate": "cd backend && npm run db:migrate"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.7"
   }
 }
