@@ -49,7 +49,7 @@ The SMK Museum Wayfinding App has been successfully refactored to be mobile-firs
 - Wider sidebar (360px)
 - Enhanced typography
 
-### 5. `src/components/OSMMap.vue` - Mobile-Optimized Map
+### 5. `frontend/src/components/OSMMap.vue` - Mobile-Optimized Map
 
 **Mobile (Default):**
 

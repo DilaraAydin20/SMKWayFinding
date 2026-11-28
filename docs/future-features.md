@@ -38,11 +38,15 @@ Start with **C (progressive loading)** — a quick win. Then layer on **A or B**
 
 ---
 
-## 2. Fetching Artworks from the SMK API
+## 2. MySQL-Backed Artwork Catalog
+
+### Current Implementation
+
+The backend syncs the SMK API into MySQL, keeping only artworks with a non-empty `current_location_name`. The frontend reads the room-assigned catalog, artwork details, descriptions, and stored images through `/api/artworks`; it should not use the SMK API directly for catalog browsing. The upstream `on_display` flag is not reliable for deciding whether an artwork belongs in this catalog.
 
 ### What the SMK API Offers
 
-The SMK API (`https://api.smk.dk/api/v1/art/`) provides:
+The SMK API (`https://api.smk.dk/api/v1/art/`) remains the backend's ingestion source and provides:
 
 - ~200,000+ artworks with metadata (title, artist, date, image, description)
 - **`current_location_name`**: Room where artwork is displayed (e.g., "Sal 205"). If absent → not currently on display.
@@ -62,6 +66,8 @@ The SMK API (`https://api.smk.dk/api/v1/art/`) provides:
 ### Room Mapping: The Good News
 
 **The room mapping is NOT a manual task.** The SMK API already provides `current_location_name` for each artwork. We just need to bridge SMK's room names (e.g., "Sal 205") with our OSM indoor feature IDs.
+
+The following approaches are historical ideas; the implemented direction is MySQL-backed and room-assigned only.
 
 ### Integration Approach
 
@@ -89,11 +95,11 @@ fetchArtworksByRoom(smkRoomName) {
 }
 ```
 
-#### D. Caching Strategy (Priority)
+#### D. Caching Strategy
 
-- **Preferred**: Download the nightly ZIP dataset (~50MB) and parse into local JSON/IndexedDB — no rate limits, instant access
-- Alternative: Paginate via API with caching + debouncing
-- Images: lazy-load only when artwork card is visible
+- MySQL is authoritative for room-assigned artwork metadata and image data.
+- Keep frontend pagination and image loading lazy; do not download the full SMK collection into the browser.
+- The backend can continue syncing from the SMK API on its existing schedule.
 
 ### Suggested Data Model
 
@@ -118,10 +124,10 @@ fetchArtworksByRoom(smkRoomName) {
 - **QR codes on frames**: Each artwork gets a QR code linking to its SMK API detail page + wayfinding data
 - **Collection filters**: Filter by artist, period, medium — then show all rooms containing works from that filter
 
-### Suggested Implementation Order
+### Remaining Wayfinding Integration Ideas
 
-1. **Build-time script**: Download nightly ZIP → parse → save as `public/smk-catalog.json`
-2. Add `fetchArtworksByRoom(smkRoomName)` action to the store (reads from cached catalog)
+1. Keep room-assigned artwork records in MySQL and use that catalog as the source for room displays.
+2. Add a MySQL mapping from SMK room names to OSM room IDs.
 3. Display artwork cards in the room info panel when user enters a room with artworks
 4. Allow tapping an artwork to set it as the wayfinding destination
 5. Add room name mapping layer: SMK `current_location_name` → OSM `osmRoomId`
@@ -140,7 +146,7 @@ Pinia stores data **in memory only** — everything is lost on page refresh or b
 | ---------- | ------------- | ---------- | ---------- |
 | **Pinia** (current) | Lost on refresh | In-memory only | Reactive UI state (loading flags, selections) |
 | **localStorage** | Survives refresh | ~5-10 MB | Small datasets: mappings, history, preferences |
-| **IndexedDB** | Survives refresh | 50MB+ (with quota) | Full SMK catalog cache (~50MB) |
+| **IndexedDB** | Survives refresh | 50MB+ (with quota) | Optional client-side cache |
 | **MySQL backend** | Permanent | Unlimited | School project requirement + user data + mappings |
 
 ### Recommended Architecture
@@ -148,12 +154,11 @@ Pinia stores data **in memory only** — everything is lost on page refresh or b
 ```text
 Frontend (Vue + Pinia)
     ├── Reactive UI state: currentLocation, isLoading, selectedArtwork
-    ├── Local cache (IndexedDB or static JSON): full SMK catalog (~50MB)
     └── Backend calls (MySQL):
-            ├── GET /api/rooms              → room list with names
-            ├── GET /api/artworks?room=205   → artworks in a room (query MySQL mapping)
-            ├── POST /api/visit              → log user visit
-            └── GET /api/user/:id/history    → user's visited rooms
+            ├── GET /api/rooms                         → room list with names
+            ├── GET /api/artworks                     → room-assigned artworks
+            ├── GET /api/artworks/:smkId               → artwork details
+            └── GET /api/artworks/:smkId/image         → stored image
 ```
 
 ### Minimal MySQL Schema
@@ -195,7 +200,7 @@ CREATE TABLE user_visits (
 | Data | Location | Reason |
 | ------ | ---------- | -------- |
 | Reactive UI state (isLoading, selectedArtwork) | Pinia | Fast, reactive, no persistence needed |
-| Full SMK artwork catalog | IndexedDB or static JSON in `public/` | Too large for MySQL, rarely changes |
+| Room-assigned artwork metadata and images | MySQL backend | Backend is required; supports shared, paginated catalog data |
 | Room ↔ artwork mapping | MySQL | Business logic data — the bridge between OSM and SMK |
 | User visit history | MySQL | Personalized data tied to user accounts |
 | QR code assignments (artwork ↔ room) | MySQL | Admin-managed mappings |
@@ -204,8 +209,8 @@ CREATE TABLE user_visits (
 
 - **Pinia alone is NOT enough** — data is lost on refresh. Use it only for reactive UI state.
 - **localStorage** works for small datasets (mappings, history, preferences) but has a ~5-10MB limit.
-- **IndexedDB** is the right choice for caching the full SMK catalog (~50MB).
-- **MySQL backend** satisfies the school project requirement and handles what needs persistence: room-artwork mappings, user data, visit logs.
+- **MySQL backend** is the source of truth for room-assigned artwork data and handles persistent mappings and user data.
+- **IndexedDB** is optional for caching transient client data; it is not the artwork catalog source.
 
 ---
 
@@ -215,6 +220,5 @@ CREATE TABLE user_visits (
 | ---------- | --------- | -------- | -------- |
 | **P0** | Progressive map loading (show tiles first) | Low | High — immediate UX fix |
 | **P1** | Cache Overpass response (IndexedDB/CacheStorage) | Medium | High — eliminates repeated waits |
-| **P1** | Fetch artworks from SMK API per room | Medium | High — core content feature |
+| **P1** | Map SMK room names to OSM room IDs | Medium | High — connects artwork records to wayfinding |
 | **P2** | Artwork-as-wayfinding-destination | Low | Medium |
-| **P2** | Build-time catalog sync script | Medium | Medium |

@@ -1,5 +1,5 @@
 <script>
-import { artworksPerPage, getArtworkCounts, getArtworks, hasArtworkDescription } from '../data/smk-api.js'
+import { artworksPerPage, getArtworkCounts, getArtworkLocations, getArtworks } from '../data/smk-api.js'
 import ArtworkAudioGuide from './ArtworkAudioGuide.vue'
 import noImage from '../images/noimage.png'
 
@@ -11,18 +11,21 @@ export default {
       artworks: [],
       currentPage: 1,
       retryPage: 1,
-      onDisplayCount: 0,
-      notOnDisplayCount: 0,
+      totalArtworkCount: 0,
       countsLoaded: false,
+      countedRoom: null,
+      roomLocations: [],
+      roomLocationsLoaded: false,
+      roomLocationsError: false,
+      selectedRoom: '',
       isLoading: false,
       loadError: false,
-      selectedArtwork: null,
-      _t: null // will be set in mounted
+      selectedArtwork: null
     }
   },
   computed: {
     totalPages() {
-      return Math.ceil((this.onDisplayCount + this.notOnDisplayCount) / artworksPerPage)
+      return Math.ceil(this.totalArtworkCount / artworksPerPage)
     },
     visiblePages() {
       const firstPage = Math.max(1, this.currentPage - 1)
@@ -40,38 +43,35 @@ export default {
   },
   methods: {
     t(key, params) {
-      if (this._t) return this._t(key, params)
-      return key // fallback
+      return this.$t(key, params)
     },
     async getPageArtworks(page) {
       const pageOffset = (page - 1) * artworksPerPage
-      const displayedOnPage = Math.max(
-        0,
-        Math.min(artworksPerPage, this.onDisplayCount - pageOffset)
-      )
-      const pageArtworks = displayedOnPage > 0
-        ? await getArtworks(pageOffset, true, displayedOnPage)
-        : []
-      const remainingSlots = artworksPerPage - pageArtworks.length
-
-      if (remainingSlots === 0) return pageArtworks
-
-      const notOnDisplayOffset = Math.max(0, pageOffset - this.onDisplayCount)
-      const notDisplayedArtworks = await getArtworks(notOnDisplayOffset, false, remainingSlots)
-      return [...pageArtworks, ...notDisplayedArtworks]
+      return getArtworks(pageOffset, artworksPerPage, this.selectedRoom)
     },
     async loadPage(page) {
       if (this.isLoading) return
-      if (this.countsLoaded && (page < 1 || page > this.totalPages)) return
+      if (!Number.isInteger(page) || page < 1) return
 
       this.isLoading = true
       this.loadError = false
 
       try {
-        if (!this.countsLoaded) {
-          const counts = await getArtworkCounts()
-          this.onDisplayCount = counts.onDisplay
-          this.notOnDisplayCount = counts.notOnDisplay
+        if (!this.roomLocationsLoaded) {
+          try {
+            this.roomLocations = await getArtworkLocations()
+            this.roomLocationsLoaded = true
+            this.roomLocationsError = false
+          } catch (error) {
+            console.error('Could not load artwork room choices:', error)
+            this.roomLocationsError = true
+          }
+        }
+
+        if (!this.countsLoaded || this.countedRoom !== this.selectedRoom) {
+          const counts = await getArtworkCounts(this.selectedRoom)
+          this.totalArtworkCount = counts.roomAssigned
+          this.countedRoom = this.selectedRoom
           this.countsLoaded = true
         }
 
@@ -83,27 +83,7 @@ export default {
 
         const requestedPage = Math.min(Math.max(page, 1), this.totalPages)
         this.retryPage = requestedPage
-        this.artworks = await getPageArtworks(requestedPage)
-        const pageArtworks = this.artworks
-
-        const checkDescriptions = async () => {
-          const batchSize = 5
-
-          for (let i = 0; i < pageArtworks.length; i += batchSize) {
-            const batch = pageArtworks.slice(i, i + batchSize)
-
-            await Promise.all(batch.map(async artwork => {
-              try {
-                artwork.hasDescription = await hasArtworkDescription(artwork.object_number)
-              } catch (error) {
-                console.error('Kunne ikke kontrollere beskrivelse:', error)
-                artwork.hasDescription = false
-              }
-            }))
-          }
-        }
-
-        checkDescriptions()
+        this.artworks = await this.getPageArtworks(requestedPage)
         this.currentPage = requestedPage
       } catch (error) {
         console.error('Could not load artworks:', error)
@@ -111,6 +91,12 @@ export default {
       } finally {
         this.isLoading = false
       }
+    },
+
+    filterByRoom() {
+      this.currentPage = 1
+      this.artworks = []
+      this.loadPage(1)
     },
 
     artworkTitle(artwork) {
@@ -129,6 +115,9 @@ export default {
       const date = artwork.production_date?.[0]
       if (typeof date === 'string') return date
       return date?.display || date?.date || date?.earliest || ''
+    },
+    handleImageError(event) {
+      event.target.src = noImage
     }
   },
   mounted() {
@@ -146,6 +135,25 @@ export default {
     </div>
   </section>
 
+  <div class="artwork-filters">
+    <label for="artwork-room-filter">{{ t('artwork.roomFilter') }}</label>
+    <select
+      id="artwork-room-filter"
+      v-model="selectedRoom"
+      :disabled="isLoading || roomLocations.length === 0"
+      @change="filterByRoom"
+    >
+      <option value="">{{ t('artwork.allRooms') }}</option>
+      <option v-for="room in roomLocations" :key="room" :value="room">{{ room }}</option>
+    </select>
+  </div>
+  <p v-if="roomLocationsError" class="room-filter-error" role="alert">
+    {{ t('artwork.roomFilterError') }}
+    <button type="button" :disabled="isLoading" @click="loadPage(currentPage)">
+      {{ t('artwork.retry') }}
+    </button>
+  </p>
+
   <section id="artwork" :aria-label="t('artwork.ariaLabel')">
     <article v-for="(artwork, index) in artworks" :key="artwork.object_number || index" class="card"> 
 
@@ -154,31 +162,44 @@ export default {
         :src="artwork.image_thumbnail || noImage"
         :alt="artworkTitle(artwork)"
         loading="lazy"
+        @error="handleImageError"
       />
-      <h3 class="cardTitle">{{ artworkTitle(artwork) }}</h3>
-      <p v-if="artworkArtist(artwork)" class="cardAuthor">{{ artworkArtist(artwork) }}</p>
-      <span
-        class="cardDisplay"
-        :class="{ 'cardDisplay--on-display': artwork.on_display }"
-      >{{ artwork.on_display ? t('artwork.inMuseum') : t('artwork.notOnDisplay') }}</span>
-      <p v-if="artworkYear(artwork)" class="cardYear">{{ artworkYear(artwork) }}</p>
-      <a
-        v-if="artwork.frontend_url"
-        class="cardBtn"
-        :href="artwork.frontend_url"
-        target="_blank"
-        rel="noopener noreferrer"
-      >{{ t('artwork.viewOnSmk') }}</a>
-    <button
-  v-if="artwork.hasDescription"
-  class="cardDescBtn"
-  type="button"
-  @click="selectedArtwork = artwork"
->
-  {{ t('artwork.viewDescription') }}
-</button>
+      <div class="cardContent">
+        <h3 class="cardTitle">{{ artworkTitle(artwork) }}</h3>
+        <p class="cardAuthor">{{ artworkArtist(artwork) }}</p>
+        <p v-if="artwork.room_name" class="cardRoom">
+          {{ t('artwork.roomLabel', { room: artwork.room_name }) }}
+        </p>
+        <p
+          class="cardYear"
+          :class="{ 'cardYear--empty': !artworkYear(artwork) }"
+        >{{ artworkYear(artwork) }}</p>
+      </div>
+      <div class="cardActions">
+        <a
+          v-if="artwork.frontend_url"
+          class="cardBtn"
+          :href="artwork.frontend_url"
+          target="_blank"
+          rel="noopener noreferrer"
+        >{{ t('artwork.viewOnSmk') }}</a>
+        <button
+          v-if="artwork.hasDescription"
+          class="cardDescBtn"
+          type="button"
+          @click="selectedArtwork = artwork"
+        >
+          {{ t('artwork.viewDescription') }}
+        </button>
+      </div>
     </article>
   </section>
+
+  <p
+    v-if="!isLoading && !loadError && countsLoaded && artworks.length === 0"
+    class="pagination-status"
+    role="status"
+  >{{ selectedRoom ? t('artwork.noRoomResults', { room: selectedRoom }) : t('artwork.noResults') }}</p>
 
   <p v-if="isLoading" class="pagination-status" role="status">{{ t('artwork.loading') }}</p>
   <div v-if="loadError" class="pagination-status" role="alert">
@@ -275,6 +296,52 @@ export default {
     line-height: 1.55;
   }
 
+  .artwork-filters {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: min(calc(100% - 32px), 1600px);
+    margin: 24px auto 0;
+  }
+
+  .artwork-filters label {
+    color: var(--smk-ink);
+    font-weight: 700;
+  }
+
+  .artwork-filters select {
+    min-width: 220px;
+    min-height: 44px;
+    padding: 8px 36px 8px 12px;
+    border: 1px solid var(--smk-line);
+    border-radius: 0;
+    background: var(--smk-paper);
+    color: var(--smk-ink);
+    font: inherit;
+  }
+
+  .room-filter-error {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    width: min(calc(100% - 32px), 1600px);
+    margin: 12px auto 0;
+    color: var(--smk-muted);
+    text-align: center;
+  }
+
+  .room-filter-error button {
+    min-height: 36px;
+    padding: 6px 12px;
+    border: 1px solid var(--smk-line);
+    border-radius: 0;
+    background: var(--smk-paper);
+    color: var(--smk-ink);
+    cursor: pointer;
+  }
+
   #artwork {
     display: grid;
     flex-shrink: 0;
@@ -289,6 +356,7 @@ export default {
     display: flex;
     flex-direction: column;
     align-items: stretch;
+    box-sizing: border-box;
     min-width: 0;
     max-width: none;
     height: 100%;
@@ -298,6 +366,12 @@ export default {
     background: var(--smk-paper);
     box-shadow: none;
     transition: border-color 180ms ease, background-color 180ms ease;
+  }
+
+  #artwork :deep(.cardContent) {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
   }
 
   #artwork :deep(.card:hover) {
@@ -318,23 +392,37 @@ export default {
   }
 
   #artwork :deep(.cardTitle) {
+    display: -webkit-box;
+    min-height: 2.7em;
+    max-height: 2.7em;
     margin: 0 0 6px;
+    overflow: hidden;
     color: var(--smk-ink);
     font-size: 1.05rem;
     font-weight: 700;
     line-height: 1.35;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
   }
 
   #artwork :deep(.cardAuthor) {
+    display: -webkit-box;
+    min-height: 2.6em;
+    max-height: 2.6em;
     margin: 0 0 10px;
+    overflow: hidden;
     color: var(--smk-muted);
     font-size: 0.92rem;
+    line-height: 1.3;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
   }
 
   #artwork :deep(.cardYear) {
-    order: 1;
     align-self: flex-start;
-    margin: auto 0 0;
+    box-sizing: border-box;
+    min-height: 27px;
+    margin: 0 0 12px;
     padding: 5px 8px;
     border: 1px solid var(--smk-line);
     border-radius: 0;
@@ -344,12 +432,17 @@ export default {
     font-weight: 700;
   }
 
-  #artwork :deep(.cardDisplay) {
+  #artwork :deep(.cardYear--empty) {
+    visibility: hidden;
+  }
+
+  #artwork :deep(.cardRoom) {
     align-self: flex-start;
-    display: inline-flex;
+    display: flex;
     align-items: center;
-    gap: 7px;
     width: fit-content;
+    min-height: 32px;
+    box-sizing: border-box;
     margin: 0 0 12px;
     padding: 6px 10px;
     border: 1px solid var(--smk-line);
@@ -358,35 +451,30 @@ export default {
     color: var(--smk-ink);
     font-size: 0.78rem;
     font-weight: 700;
-    line-height: 1;
-  }
-
-  #artwork :deep(.cardDisplay::before) {
-    width: 7px;
-    height: 7px;
-    flex: 0 0 7px;
-    border-radius: 50%;
-    background: currentColor;
-    content: "";
-  }
-
-  #artwork :deep(.cardDisplay--on-display) {
-    border-color: #8d8d89;
-    background: #e8e8e5;
-    color: var(--smk-ink);
-  }
-
-  #artwork :deep(.cardDisplay:empty) {
-    display: none;
+    line-height: 1.2;
   }
 
   #artwork :deep(.cardBtn) {
-    order: 2;
+    text-decoration: none;
+  }
+
+  #artwork :deep(.cardActions) {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: auto;
+  }
+
+  #artwork :deep(.cardBtn),
+  #artwork :deep(.cardDescBtn) {
+    box-sizing: border-box;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-height: 44px;
-    margin-top: 8px;
+    width: 100%;
+    height: 48px;
+    min-height: 48px;
+    margin: 0;
     padding: 10px 14px;
     border: 1px solid var(--smk-ink);
     border-radius: 0;
@@ -394,8 +482,9 @@ export default {
     color: #fff;
     font-size: 0.9rem;
     font-weight: 700;
+    line-height: 1.2;
     text-align: center;
-    text-decoration: none;
+    cursor: pointer;
     transition: background-color 180ms ease, transform 180ms ease;
   }
 
@@ -429,6 +518,22 @@ export default {
       padding: 16px 0;
     }
 
+    .artwork-filters {
+      align-items: stretch;
+      flex-direction: column;
+      gap: 8px;
+      width: min(calc(100% - 24px), 1600px);
+      margin-top: 16px;
+    }
+
+    .artwork-filters select {
+      width: 100%;
+    }
+
+    .room-filter-error {
+      width: min(calc(100% - 24px), 1600px);
+    }
+
     #artwork :deep(.card) {
       max-width: none;
     }
@@ -440,22 +545,8 @@ export default {
     }
   }
 
-    #artwork :deep(.cardDescBtn) {
-    order: 2;
-    min-height: 44px;
-    margin-top: 8px;
-    padding: 10px 14px;
-    border: 1px solid var(--smk-ink);
-    border-radius: 0;
-    background: var(--smk-paper);
-    color: var(--smk-ink);
-    font-size: 0.9rem;
-    font-weight: 700;
-    cursor: pointer;
-  }
-
   #artwork :deep(.cardDescBtn:hover) {
-    background: var(--smk-surface);
+    background: #333;
   }
 
   .pagination-status {

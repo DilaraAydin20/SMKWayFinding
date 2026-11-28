@@ -76,7 +76,7 @@ export const useMuseumwayfinding = defineStore('museumwayfinding', {
           throw new Error(`Search failed: ${response.status}`)
         }
         const data = await response.json()
-        return data.results || []
+        return data.artworks || []
       } catch (error) {
         console.error('Artwork search failed:', error)
         return []

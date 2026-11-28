@@ -1,5 +1,6 @@
 <script>
 import { nextTick } from 'vue'
+import { getArtworkText } from '../data/smk-api.js'
 
 export default {
   name: 'ArtworkAudioGuide',
@@ -15,6 +16,8 @@ export default {
       description: '',
       audioUrl: null,
       isLoading: false,
+      isDescriptionLoading: false,
+      descriptionRequestId: 0,
       errorMessage: ''
     }
   },
@@ -38,18 +41,16 @@ export default {
     }
   },
   watch: {
-    'artwork.id': {
+    artwork: {
       handler() {
-        this.description = this.getArtworkDescription()
-        this.clearAudio()
-        this.errorMessage = ''
+        this.loadArtworkDescription()
       },
       immediate: true
     },
     language() {
-      this.description = this.getArtworkDescription()
       this.clearAudio()
       this.errorMessage = ''
+      this.loadArtworkDescription()
     },
     description() {
       this.clearAudio()
@@ -65,6 +66,34 @@ export default {
 
       return typeof localizedDescription === 'string' ? localizedDescription : ''
     },
+    async loadArtworkDescription() {
+      const requestId = ++this.descriptionRequestId
+      const artwork = this.artwork
+      const providedDescription = this.getArtworkDescription()
+      this.description = providedDescription
+
+      const objectNumber = artwork?.object_number || artwork?.smk_id || artwork?.id
+      if (providedDescription || !objectNumber) {
+        this.isDescriptionLoading = false
+        return
+      }
+
+      this.isDescriptionLoading = true
+      try {
+        const result = await getArtworkText(objectNumber, this.language)
+        if (requestId === this.descriptionRequestId) {
+          this.description = result.text
+        }
+      } catch (error) {
+        if (requestId === this.descriptionRequestId) {
+          this.errorMessage = error.message || 'Could not load the artwork description.'
+        }
+      } finally {
+        if (requestId === this.descriptionRequestId) {
+          this.isDescriptionLoading = false
+        }
+      }
+    },
     clearAudio() {
       if (this.audioUrl) {
         URL.revokeObjectURL(this.audioUrl)
@@ -72,7 +101,7 @@ export default {
       }
     },
     async generateSpeech() {
-      if (!this.artwork || !this.description.trim() || this.isLoading) return
+      if (!this.artwork || !this.description.trim() || this.isLoading || this.isDescriptionLoading) return
 
       this.clearAudio()
       this.errorMessage = ''
@@ -132,10 +161,11 @@ export default {
       </select>
 
       <label for="artwork-audio-description">Artwork description</label>
+      <p v-if="isDescriptionLoading" role="status">Loading description...</p>
       <textarea
         id="artwork-audio-description"
         v-model="description"
-        :disabled="isLoading"
+        :disabled="isLoading || isDescriptionLoading"
         maxlength="5000"
         rows="5"
         :placeholder="`Enter the ${languages.find(option => option.code === language)?.name} description`"
@@ -144,7 +174,7 @@ export default {
       <button
         type="button"
         class="btn btn-primary"
-        :disabled="isLoading || !description.trim()"
+        :disabled="isLoading || isDescriptionLoading || !description.trim()"
         @click="generateSpeech"
       >
         {{ isLoading ? 'Generating audio…' : 'Generate and play' }}

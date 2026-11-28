@@ -1,175 +1,159 @@
-import noImage from '../images/noimage.png'
+export const artworksPerPage = 40
 
-const apiUrl = 'https://api.smk.dk/api/v1/art/search/';
-
-export const artworksPerPage = 40;
-
-async function searchArtworks(offset, limit, onDisplay) {
-    try {
-        const params = new URLSearchParams({
-            keys: '*',
-            offset: String(offset),
-            rows: String(limit),
-            filters: `on_display:${onDisplay}`
-        });
-        const response = await fetch(`${apiUrl}?${params}`);
-        if (!response.ok) {
-            throw new Error(`SMK API request failed with status ${response.status}`);
-        }
-
-        const data = await response.json();
-        if (!Array.isArray(data.items) || !Number.isInteger(data.found)) {
-            throw new Error('SMK API returned an invalid artwork search response');
-        }
-
-        return {
-            found: data.found,
-            items: data.items.map(artwork => ({
-                object_number: artwork?.object_number ?? '',
-                 hasDescription: false,
-                titles: artwork?.titles ?? [],
-                artist: artwork?.artist ?? [],
-                production_date: artwork?.production_date ?? [],
-                frontend_url: artwork?.frontend_url ?? '',
-                on_display: artwork?.on_display ?? null,
-                image_thumbnail: artwork?.image_thumbnail ?? noImage,
-                image_orientation: artwork?.image_orientation ?? ''
-            }))
-        };
-
-    } catch (error) {
-        console.error('Error while retrieving artworks:', error);
-        throw error;
-    }
-}
-
-let artworkCountsRequest
-
-export function getArtworkCounts() {
-    if (!artworkCountsRequest) {
-        artworkCountsRequest = Promise.all([
-            searchArtworks(0, 0, true),
-            searchArtworks(0, 0, false)
-        ])
-            .then(([onDisplay, notOnDisplay]) => ({
-                onDisplay: onDisplay.found,
-                notOnDisplay: notOnDisplay.found
-            }))
-            .catch(error => {
-                artworkCountsRequest = null
-                throw error
-            })
-    }
-
-    return artworkCountsRequest
-}
-
-export async function getArtworks(offset, onDisplay, limit = artworksPerPage) {
-    const result = await searchArtworks(offset, limit, onDisplay)
-    return result.items
-}
-
+const apiUrl = '/api/artworks'
+const artworkCountsRequests = new Map()
 const artworkDescriptionCache = new Map()
 const artworkDescriptionRequests = new Map()
 
 function normalizeText(text) {
-    return typeof text === 'string' ? text.replace(/\s+/g, ' ').trim() : ''
+  return typeof text === 'string' ? text.replace(/\s+/g, ' ').trim() : ''
 }
 
-function getDescription(item) {
-    const label = item?.labels?.find(entry => entry.type === 'CATALOGUETEXT')
-        || item?.labels?.[0]
-    return normalizeText(label?.text)
+function toFrontendArtwork(artwork) {
+  const descriptionDa = normalizeText(artwork.description_da)
+  const descriptionEn = normalizeText(artwork.description_en)
+
+  return {
+    object_number: artwork.smk_id,
+    hasDescription: Boolean(descriptionDa || descriptionEn),
+    descriptions: {
+      da: descriptionDa,
+      en: descriptionEn
+    },
+    titles: [{ title: artwork.title || '' }],
+    artist: artwork.artist ? [artwork.artist] : [],
+    production_date: artwork.year ? [{ display: artwork.year }] : [],
+    room_name: artwork.current_location_name || '',
+    frontend_url: artwork.web_url || '',
+    image_thumbnail: artwork.image_thumbnail || '',
+    image_orientation: ''
+  }
 }
 
-async function fetchArtwork(objectNumber, language) {
-    const query = new URLSearchParams({ object_number: objectNumber, lang: language })
-    const response = await fetch(`https://api.smk.dk/api/v1/art/?${query}`)
-    if (!response.ok) {
-        throw new Error(`SMK API request failed with status ${response.status}`)
-    }
+async function fetchArtworkPage(page, limit, location = '') {
+  const params = new URLSearchParams({
+    page: String(page),
+    limit: String(limit)
+  })
+  if (location) params.set('location', location)
+  const response = await fetch(`${apiUrl}?${params}`)
+  if (!response.ok) {
+    throw new Error(`Artwork request failed with status ${response.status}`)
+  }
 
-    return (await response.json()).items?.[0] ?? null
+  const data = await response.json()
+  if (!Array.isArray(data.artworks) || !Number.isInteger(data.total)) {
+    throw new Error('Backend returned an invalid artwork search response')
+  }
+
+  return data
+}
+
+async function fetchArtwork(objectNumber) {
+  const response = await fetch(`${apiUrl}/${encodeURIComponent(objectNumber)}`)
+  if (!response.ok) {
+    throw new Error(response.status === 404
+      ? 'Artwork not found in the local catalog'
+      : `Artwork request failed with status ${response.status}`)
+  }
+
+  return response.json()
+}
+
+export function getArtworkCounts(location = '') {
+  const cacheKey = location || ''
+  if (!artworkCountsRequests.has(cacheKey)) {
+    const request = fetchArtworkPage(1, 1, cacheKey)
+      .then(({ total }) => ({ roomAssigned: total }))
+      .catch(error => {
+        artworkCountsRequests.delete(cacheKey)
+        throw error
+      })
+    artworkCountsRequests.set(cacheKey, request)
+  }
+
+  return artworkCountsRequests.get(cacheKey)
+}
+
+export async function getArtworkLocations() {
+  const response = await fetch(`${apiUrl}/locations`)
+  if (!response.ok) {
+    throw new Error(`Artwork locations request failed with status ${response.status}`)
+  }
+
+  const data = await response.json()
+  if (!Array.isArray(data.locations) || data.locations.some(location => typeof location !== 'string')) {
+    throw new Error('Backend returned an invalid artwork locations response')
+  }
+
+  return data.locations
+}
+
+export async function getArtworks(offset, limit = artworksPerPage, location = '') {
+  if (!Number.isInteger(offset) || offset < 0 ||
+      !Number.isInteger(limit) || limit < 1 || offset % limit !== 0) {
+    throw new RangeError('Artwork offset and limit must define a valid page.')
+  }
+
+  const page = Math.floor(offset / limit) + 1
+  const { artworks } = await fetchArtworkPage(page, limit, location)
+  return artworks.map(toFrontendArtwork)
 }
 
 export function getArtworkText(objectNumber, language) {
-    const cacheKey = `${objectNumber}:${language}`
-    if (artworkDescriptionCache.has(cacheKey)) {
-        return Promise.resolve(artworkDescriptionCache.get(cacheKey))
-    }
+  const cacheKey = `${objectNumber}:${language}`
+  if (artworkDescriptionCache.has(cacheKey)) {
+    return Promise.resolve(artworkDescriptionCache.get(cacheKey))
+  }
 
-    if (artworkDescriptionRequests.has(cacheKey)) {
-        return artworkDescriptionRequests.get(cacheKey)
-    }
+  if (artworkDescriptionRequests.has(cacheKey)) {
+    return artworkDescriptionRequests.get(cacheKey)
+  }
 
-    const request = fetchArtworkText(objectNumber, language)
-        .finally(() => artworkDescriptionRequests.delete(cacheKey))
-    artworkDescriptionRequests.set(cacheKey, request)
-    return request
+  const request = fetchArtworkText(objectNumber, language)
+    .finally(() => artworkDescriptionRequests.delete(cacheKey))
+  artworkDescriptionRequests.set(cacheKey, request)
+  return request
 }
 
 async function fetchArtworkText(objectNumber, language) {
-    const cacheKey = `${objectNumber}:${language}`
-    const requestedArtwork = await fetchArtwork(objectNumber, language)
-    const requestedLabel = requestedArtwork?.labels?.find(entry => entry.type === 'CATALOGUETEXT')
-        || requestedArtwork?.labels?.[0]
-    const requestedText = getDescription(requestedArtwork)
-    const requestedLanguage = requestedLabel?.language || requestedLabel?.lang || requestedLabel?.language_code
-    const normalizedRequestedLanguage = typeof requestedLanguage === 'string'
-        ? requestedLanguage.toLowerCase().split(/[-_]/)[0]
-        : ''
+  const cacheKey = `${objectNumber}:${language}`
+  const artwork = await fetchArtwork(objectNumber)
+  const requestedText = normalizeText(artwork[`description_${language}`])
 
-    if (language === 'da') {
-        const result = { text: requestedText, translated: false, fallback: false }
-        artworkDescriptionCache.set(cacheKey, result)
-        return result
+  if (requestedText) {
+    const result = { text: requestedText, translated: false, fallback: false }
+    artworkDescriptionCache.set(cacheKey, result)
+    return result
+  }
+
+  const danishText = normalizeText(artwork.description_da)
+  if (!danishText) {
+    return { text: '', translated: false, fallback: false }
+  }
+
+  try {
+    const response = await fetch('/api/translate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: danishText, targetLanguage: language })
+    })
+
+    if (!response.ok) {
+      const result = await response.json().catch(() => ({}))
+      throw new Error(result.error || `Translation request failed (${response.status}).`)
     }
 
-    const danishArtwork = await fetchArtwork(objectNumber, 'da')
-    const danishText = getDescription(danishArtwork)
-    const isOfficialTranslation = requestedText && (
-        normalizedRequestedLanguage
-            ? normalizedRequestedLanguage === language
-            : requestedText !== danishText
-    )
-
-    if (isOfficialTranslation) {
-        const result = { text: requestedText, translated: false, fallback: false }
-        artworkDescriptionCache.set(cacheKey, result)
-        return result
+    const result = await response.json()
+    if (typeof result.text !== 'string' || !result.text.trim()) {
+      throw new Error('Translation service returned an empty description.')
     }
 
-    if (!danishText) {
-        return { text: '', translated: false, fallback: false }
-    }
-
-    try {
-        const response = await fetch('/api/translate', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text: danishText, targetLanguage: language })
-        })
-
-        if (!response.ok) {
-            const result = await response.json().catch(() => ({}))
-            throw new Error(result.error || `Translation request failed (${response.status}).`)
-        }
-
-        const result = await response.json()
-        if (typeof result.text !== 'string' || !result.text.trim()) {
-            throw new Error('Translation service returned an empty description.')
-        }
-
-        const description = { text: normalizeText(result.text), translated: true, fallback: false }
-        artworkDescriptionCache.set(cacheKey, description)
-        return description
-    } catch (error) {
-        console.warn('Artwork description translation is unavailable:', error)
-        return { text: danishText, translated: false, fallback: true, error: true }
-    }
-}
-
-export async function hasArtworkDescription(objectNumber) {
-    const artwork = await fetchArtwork(objectNumber, 'da')
-    return Boolean(getDescription(artwork))
+    const description = { text: normalizeText(result.text), translated: true, fallback: false }
+    artworkDescriptionCache.set(cacheKey, description)
+    return description
+  } catch (error) {
+    console.warn('Artwork description translation is unavailable:', error)
+    return { text: danishText, translated: false, fallback: true, error: true }
+  }
 }

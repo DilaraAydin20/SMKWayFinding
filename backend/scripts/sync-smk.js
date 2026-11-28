@@ -90,11 +90,10 @@ function itemToRecord(item) {
   const descriptionEn = sanitize(item.descriptions?.en || item.description_en || null)
   const descriptionDa = sanitize(item.descriptions?.da || item.description_da || null)
   const webUrl = sanitize(item.frontend_url) || null
-  const onDisplay = item.on_display ?? null
-  const locationName = sanitize(item.current_location_name) || null
+  const locationName = sanitize(item.current_location_name)?.trim() || null
   const imageThumbnail = item.image_thumbnail || null
 
-  return { smkId, title: titles, artist: artistVal, year, description_en: descriptionEn, description_da: descriptionDa, web_url: webUrl, on_display: onDisplay, current_location_name: locationName, image_thumbnail: imageThumbnail }
+  return { smkId, title: titles, artist: artistVal, year, description_en: descriptionEn, description_da: descriptionDa, web_url: webUrl, current_location_name: locationName, image_thumbnail: imageThumbnail }
 }
 
 async function fetchPage(offset) {
@@ -129,13 +128,13 @@ async function fetchPage(offset) {
 
 function buildUpsertSql(records) {
   const now = mysqlNow()
-  const columns = ['smk_id', 'title', 'artist', 'year', 'description_en', 'description_da', 'web_url', 'on_display', 'current_location_name', 'last_synced_at', 'image_data']
-  const updateFields = ['title', 'artist', 'year', 'description_en', 'description_da', 'web_url', 'on_display', 'current_location_name', 'last_synced_at', 'image_data']
+  const columns = ['smk_id', 'title', 'artist', 'year', 'description_en', 'description_da', 'web_url', 'current_location_name', 'last_synced_at', 'image_data']
+  const updateFields = ['title', 'artist', 'year', 'description_en', 'description_da', 'web_url', 'current_location_name', 'last_synced_at', 'image_data']
 
   // Build VALUES clause
   const values = records.map(r => {
     const imgHex = r.image_data ? `0x${r.image_data.toString('hex')}` : 'NULL'
-    return `(${sqlEscape(r.smkId)}, ${sqlEscape(r.title)}, ${sqlEscape(r.artist)}, ${sqlEscape(r.year)}, ${sqlEscape(r.description_en)}, ${sqlEscape(r.description_da)}, ${sqlEscape(r.web_url)}, ${r.onDisplay ? 'TRUE' : 'FALSE'}, ${sqlEscape(r.current_location_name)}, '${now}', ${imgHex})`
+    return `(${sqlEscape(r.smkId)}, ${sqlEscape(r.title)}, ${sqlEscape(r.artist)}, ${sqlEscape(r.year)}, ${sqlEscape(r.description_en)}, ${sqlEscape(r.description_da)}, ${sqlEscape(r.web_url)}, ${sqlEscape(r.current_location_name)}, '${now}', ${imgHex})`
   }).join(', ')
 
   return `INSERT INTO artworks (${columns.join(', ')}) VALUES ${values} ON DUPLICATE KEY UPDATE ${updateFields.map(f => `${f}=VALUES(${f})`).join(', ')}`
@@ -177,7 +176,7 @@ async function syncFromSmkApi() {
         const data = result.value
         for (const item of data.items) {
           const record = itemToRecord(item)
-          if (record && record.current_location_name !== null) allRecords.push(record)
+          if (record && record.current_location_name) allRecords.push(record)
         }
         consecutiveEmpties = 0 // reset on successful fetch
       } else {
