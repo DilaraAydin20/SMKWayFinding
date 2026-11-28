@@ -412,22 +412,24 @@ export default {
         .bindPopup(this.getIndoorPopupContent(way))
 
       if (typeof layer.setStyle === 'function') {
-        layer.on('mouseover', function() {
+        layer.on('mouseover', () => {
           if (!this.isPathfindingRoom(way)) {
-            this.setStyle({ fillOpacity: 0.3, weight: 3 })
+            layer.setStyle({ fillOpacity: 0.3, weight: 3 })
           }
-        }.bind(this))
-        layer.on('mouseout', function() {
-          this.setStyle(this.getWayStyle(way))
-        }.bind(this))
+        })
+        layer.on('mouseout', () => {
+          layer.setStyle(this.getWayStyle(way))
+        })
       }
       layer.on('click', () => this.selectRoomForPathfinding(way))
       way.layer = layer
     },
     getIndoorPopupContent(way) {
+      const featureTypeKey = `map.featureTypes.${way.type}`
+      const featureType = this.$te(featureTypeKey) ? this.$t(featureTypeKey) : way.type
       return `
         <b>${way.name}</b><br/>
-        ${this.$t('map.featureType')}: ${this.$t(`map.featureTypes.${way.type}`, { defaultValue: way.type })}
+        ${this.$t('map.featureType')}: ${featureType}
       `
     },
     refreshPathfindingStyles() {

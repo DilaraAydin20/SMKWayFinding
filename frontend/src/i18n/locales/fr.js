@@ -110,7 +110,10 @@ export default {
       door: 'Porte',
       steps: 'Escalier',
       elevator: 'Ascenseur',
-      stairs: 'Escalier'
+      stairs: 'Escalier',
+      area: 'Zone',
+      wall: 'Mur',
+      level: 'Niveau'
     }
   },
   qr: {

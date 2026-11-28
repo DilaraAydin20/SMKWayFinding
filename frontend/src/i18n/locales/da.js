@@ -112,7 +112,10 @@ export default {
       door: 'Dør',
       steps: 'Trappe',
       elevator: 'Elevator',
-      stairs: 'Trappe'
+      stairs: 'Trappe',
+      area: 'Område',
+      wall: 'Væg',
+      level: 'Etage'
     }
   },
   qr: {

@@ -112,7 +112,10 @@ export default {
       door: 'Door',
       steps: 'Stairs',
       elevator: 'Elevator',
-      stairs: 'Stairs'
+      stairs: 'Stairs',
+      area: 'Area',
+      wall: 'Wall',
+      level: 'Level'
     }
   },
   qr: {
