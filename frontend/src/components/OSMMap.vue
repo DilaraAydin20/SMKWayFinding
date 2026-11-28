@@ -216,13 +216,15 @@ export default {
       pathfindingStep: 'idle',
       selectedStartRoom: null,
       selectedDestinationRoom: null,
-      routeWarning: '',
+      routeWarnings: [],
       roomSearchQuery: '',
       roomSearchMessage: '',
       searchedRoom: null,
       isMapLoaded: false,
       isLoading: true,
       errorMessage: null,
+      isComponentActive: true,
+      overpassControllers: [],
       drawerOpen: false,
       showBuildingInfo: false,
       indoorWaysRef: [],
@@ -248,7 +250,8 @@ export default {
       return 'M6.25 6.3a.75.75 0 011.06 0L12 10.94l4.69-4.68a.75.75 0 011.06 1.06L13.06 12l4.69 4.69a.75.75 0 01-1.06 1.06L12 13.06l-4.69 4.69a.75.75 0 01-1.06-1.06L10.94 12 6.25 7.31a.75.75 0 010-1.06z'
     },
     currentRoomName() {
-      return this.store.getCurrentRoomName(this.store.currentLocation) || this.$t('map.unknownRoom')
+      const roomName = this.store.getCurrentRoomName(this.store.currentLocation)
+      return !roomName || roomName === 'Unknown Room' ? this.$t('map.unknownRoom') : roomName
     },
     wayfindingRoute() {
       return this.store.wayfindingRoute
@@ -258,7 +261,8 @@ export default {
       if (this.pathfindingStep === 'destination') return this.$t('map.promptDestination')
       if (this.pathfindingStep === 'complete') {
         const routeSummary = this.$t('map.routeSelected', { start: this.selectedStartRoom.name, destination: this.selectedDestinationRoom.name })
-        return this.routeWarning ? `${routeSummary}. ${this.routeWarning}` : routeSummary
+        const warnings = this.routeWarnings.map(key => this.$t(`map.${key}`)).join(' ')
+        return warnings ? `${routeSummary}. ${warnings}` : routeSummary
       }
       return ''
     },
@@ -266,10 +270,20 @@ export default {
       return this.store.isInRoom
     }
   },
+  watch: {
+    '$i18n.locale'() {
+      this.indoorWaysRef.forEach(way => {
+        way.layer?.setPopupContent(this.getIndoorPopupContent(way))
+      })
+    }
+  },
   mounted() {
     this.loadOSMData()
   },
   beforeUnmount() {
+    this.isComponentActive = false
+    this.overpassControllers.forEach(controller => controller.abort())
+    this.overpassControllers = []
     if (this.osmMapInstance && this.osmMapInstance.map) {
       try {
         this.osmMapInstance.map.remove()
@@ -395,10 +409,7 @@ export default {
 
       layer
         .addTo(this.indoorLayerGroup)
-        .bindPopup(`
-          <b>${way.name}</b><br/>
-          ${this.$t('map.featureType')}: ${this.$t(`map.featureTypes.${way.type}`, { defaultValue: way.type })}
-        `)
+        .bindPopup(this.getIndoorPopupContent(way))
 
       if (typeof layer.setStyle === 'function') {
         layer.on('mouseover', function() {
@@ -412,6 +423,12 @@ export default {
       }
       layer.on('click', () => this.selectRoomForPathfinding(way))
       way.layer = layer
+    },
+    getIndoorPopupContent(way) {
+      return `
+        <b>${way.name}</b><br/>
+        ${this.$t('map.featureType')}: ${this.$t(`map.featureTypes.${way.type}`, { defaultValue: way.type })}
+      `
     },
     refreshPathfindingStyles() {
       this.indoorWaysRef.forEach(way => {
@@ -483,9 +500,9 @@ export default {
         const connector = this.findNearestFeature(connectorCandidates, previousConnector.position)
 
         if (!matchingTypeConnectors.length && connectors.length) {
-          this.addRouteWarning('The same stair or elevator is not mapped on every floor; using the nearest connector.')
+          this.addRouteWarning('missingLevelConnector')
         } else if (!connector) {
-          this.addRouteWarning('A floor has no mapped stairs or elevator; continuing at the nearest mapped connector position.')
+          this.addRouteWarning('missingConnectors')
         }
 
         chain.push(connector
@@ -506,7 +523,9 @@ export default {
       return chain
     },
     addRouteWarning(message) {
-      this.routeWarning = [this.routeWarning, message].filter(Boolean).join(' ')
+      if (!this.routeWarnings.includes(message)) {
+        this.routeWarnings.push(message)
+      }
     },
     addPathfindingSegment(level, points) {
       const coordinates = points.filter(Boolean).filter((point, index, allPoints) =>
@@ -518,7 +537,7 @@ export default {
     },
     clearPathfindingRoute() {
       this.plannedRouteSegments = []
-      this.routeWarning = ''
+      this.routeWarnings = []
       if (this.pathfindingRouteLayer) this.pathfindingRouteLayer.clearLayers()
     },
     renderPathfindingRoute() {
@@ -563,7 +582,7 @@ export default {
       if (!startRoom || !destinationRoom) return
 
       this.clearPathfindingRoute()
-      this.addRouteWarning('Route is estimated using nearby mapped doors and connectors.')
+      this.addRouteWarning('estimatedRoute')
       const startLevel = startRoom.level
       const destinationLevel = destinationRoom.level
       const startPosition = this.getFeaturePosition(startRoom)
@@ -572,7 +591,7 @@ export default {
       const destinationDoor = this.findNearestDoor(destinationLevel, destinationPosition)
 
       if (!startDoor || !destinationDoor) {
-        this.addRouteWarning('Some room doors are not mapped; using direct links where needed.')
+        this.addRouteWarning('missingRoomDoors')
       }
 
       if (startLevel === destinationLevel) {
@@ -596,7 +615,7 @@ export default {
             destinationDoor && this.getFeaturePosition(destinationDoor),
             destinationPosition
           ])
-          this.addRouteWarning('No stairs or elevators are mapped on the starting floor, so the floor change cannot be routed.')
+          this.addRouteWarning('missingStartingConnectors')
         } else {
           connectorChain.forEach((connector, index) => {
             const previousConnector = connectorChain[index - 1]
@@ -704,32 +723,19 @@ export default {
           attribution: '<a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         }).addTo(this.osmMapInstance.map)
 
-        const infoControl = L.control({ position: 'bottomleft' })
-        infoControl.onAdd = () => {
-          const div = L.DomUtil.create('div', 'building-info')
-          div.innerHTML = `
-            <div style="background:white; padding:10px; border: 1px solid #d8d8d5;">
-              <h4>SMK Building</h4>
-              <p><strong>Data Source:</strong> OpenStreetMap Indoor Mapping<br/>
-                 <strong>Note:</strong> Real room data from OSM contributors</p>
-            </div>`
-          return div
-        }
-        infoControl.addTo(this.osmMapInstance.map)
+        const cachedData = this.getCachedOSMData()
+        const cacheAge = cachedData ? Date.now() - cachedData.timestamp : Infinity
+        const maximumCacheAge = 30 * 24 * 60 * 60 * 1000
 
-        // Try fetching indoor data once; fall back to mock data if it fails
-        let fetchFailed = false
-        try {
+        if (cachedData && cacheAge >= 0 && cacheAge <= maximumCacheAge) {
+          this.processOSMData(cachedData.data)
+          if (cacheAge > 24 * 60 * 60 * 1000) {
+            this.refreshOSMDataInBackground()
+          }
+        } else {
           const data = await this.fetchIndoorDataRaw()
+          this.cacheOSMData(data)
           this.processOSMData(data)
-        } catch (err) {
-          fetchFailed = true
-          console.warn('Overpass API failed, loading fallback data:', err.message)
-        }
-
-        if (fetchFailed) {
-          this.errorMessage = null
-          this.processFallbackData()
         }
 
         this.pathfindingRouteLayer = L.layerGroup().addTo(this.osmMapInstance.map)
@@ -737,166 +743,47 @@ export default {
         this.isMapLoaded = true
       } catch (error) {
         console.error('Error loading OpenStreetMap data:', error)
+        if (this.isComponentActive) {
+          this.errorMessage = error.message || 'OpenStreetMap data could not be loaded.'
+        }
       } finally {
-        this.isLoading = false
+        if (this.isComponentActive) {
+          this.isLoading = false
+        }
       }
     },
-    processFallbackData() {
-      // Generate mock indoor mapping data for SMK building when Overpass is unreachable
-      console.log('[OSMMap] Loading fallback indoor data...')
-      const centerLat = 55.6887
-      const centerLon = 12.5783
-      const latStep = 0.00005
-      const lonStep = 0.00008
-
-      const nodes = {}
-      let nodeId = 10000
-      const ways = []
-      let wayId = 20000
-
-      const createRectRoom = (id, name, latCenter, lonCenter, level, type = 'room') => {
-        const hwLat = latStep * 0.8 // half-width lat
-        const hwLon = lonStep * 1.2 // half-width lon
-        const corners = [
-          [latCenter - hwLat, lonCenter - hwLon],
-          [latCenter - hwLat, lonCenter + hwLon],
-          [latCenter + hwLat, lonCenter + hwLon],
-          [latCenter + hwLat, lonCenter - hwLon]
-        ]
-
-        const nodeIds = corners.map(() => nodeId++)
-        nodeIds.forEach((nid, i) => {
-          nodes[nid] = { lat: corners[i][0], lon: corners[i][1] }
-        })
-
-        ways.push({
-          id: id,
-          type: 'way',
-          tags: { indoor: type, name, level: String(level), ref: `room-${id}` },
-          nodes: nodeIds
-        })
-
-        return {
-          id: `fallback-${id}`,
-          geometry: 'polygon',
-          coordinates: corners,
-          level,
-          name,
-          type,
-          otherTags: { name, level: String(level), ref: `room-${id}` }
+    getCachedOSMData() {
+      try {
+        const cached = JSON.parse(localStorage.getItem('smk-indoor-data'))
+        if (!cached || !Array.isArray(cached.data?.elements) || !Number.isFinite(cached.timestamp)) {
+          return null
         }
+        return cached
+      } catch (error) {
+        console.warn('Could not read cached indoor map data:', error)
+        return null
       }
-
-      const createDoor = (id, lat, lon, level) => {
-        const nid = nodeId++
-        nodes[nid] = { lat, lon }
-        ways.push({
-          id, type: 'way', tags: { indoor: 'door', level: String(level) }, nodes: [nid]
-        })
-        return {
-          id: `fallback-${id}`, geometry: 'point', coordinates: [[lat, lon]],
-          level, name: `Door ${id}`, type: 'door',
-          otherTags: { indoor: 'door', level: String(level) }
-        }
+    },
+    cacheOSMData(data) {
+      try {
+        localStorage.setItem('smk-indoor-data', JSON.stringify({
+          data,
+          timestamp: Date.now()
+        }))
+      } catch (error) {
+        console.warn('Could not cache indoor map data:', error)
       }
-
-      const createStairs = (id, lat, lon, level) => {
-        const nid1 = nodeId++
-        const nid2 = nodeId++
-        nodes[nid1] = { lat: lat - latStep * 0.3, lon }
-        nodes[nid2] = { lat: lat + latStep * 0.3, lon }
-        ways.push({
-          id, type: 'way', tags: { indoor: 'stairs', level: String(level) }, nodes: [nid1, nid2]
-        })
-        return {
-          id: `fallback-${id}`, geometry: 'line', coordinates: [[lat - latStep * 0.3, lon], [lat + latStep * 0.3, lon]],
-          level, name: `Stairs ${id}`, type: 'stairs',
-          otherTags: { indoor: 'stairs', level: String(level) }
-        }
+    },
+    async refreshOSMDataInBackground() {
+      try {
+        const data = await this.fetchIndoorDataRaw()
+        if (!this.isComponentActive) return
+        this.cacheOSMData(data)
+        this.processOSMData(data)
+      } catch (error) {
+        if (!this.isComponentActive) return
+        console.warn('Overpass refresh failed; keeping cached map data:', error.message)
       }
-
-      const createElevator = (id, lat, lon, level) => {
-        const nid = nodeId++
-        nodes[nid] = { lat, lon }
-        ways.push({
-          id, type: 'way', tags: { indoor: 'elevator', level: String(level) }, nodes: [nid]
-        })
-        return {
-          id: `fallback-${id}`, geometry: 'point', coordinates: [[lat, lon]],
-          level, name: `Elevator ${id}`, type: 'elevator',
-          otherTags: { indoor: 'elevator', level: String(level) }
-        }
-      }
-
-      const fallbackElements = []
-
-      // Level -1 (Basement)
-      fallbackElements.push(
-        createRectRoom(30001, 'Storage Room A', centerLat + 0.00015, centerLon - 0.0002, -1),
-        createRectRoom(30002, 'Storage Room B', centerLat - 0.00015, centerLon - 0.0002, -1),
-        createRectRoom(30003, 'Mechanical Room', centerLat, centerLon + 0.0002, -1),
-        createDoor(40001, centerLat, centerLon - 0.0005, -1),
-        createStairs(50001, centerLat + 0.0003, centerLon + 0.0005, -1),
-        createElevator(60001, centerLat - 0.0003, centerLon + 0.0005, -1)
-      )
-
-      // Level 0 (Ground Floor)
-      fallbackElements.push(
-        createRectRoom(30010, 'Main Hall', centerLat, centerLon, 0),
-        createRectRoom(30011, 'Gallery 1', centerLat + 0.0002, centerLon - 0.0004, 0),
-        createRectRoom(30012, 'Gallery 2', centerLat - 0.0002, centerLon - 0.0004, 0),
-        createRectRoom(30013, 'Gallery 3', centerLat + 0.0002, centerLon + 0.0004, 0),
-        createRectRoom(30014, 'Gallery 4', centerLat - 0.0002, centerLon + 0.0004, 0),
-        createDoor(40010, centerLat, centerLon - 0.0006, 0),
-        createDoor(40011, centerLat + 0.0004, centerLon, 0),
-        createStairs(50010, centerLat + 0.0003, centerLon + 0.0005, 0),
-        createElevator(60010, centerLat - 0.0003, centerLon + 0.0005, 0)
-      )
-
-      // Level 1 (First Floor)
-      fallbackElements.push(
-        createRectRoom(30020, 'Painting Hall A', centerLat + 0.0001, centerLon - 0.0003, 1),
-        createRectRoom(30021, 'Painting Hall B', centerLat - 0.0001, centerLon - 0.0003, 1),
-        createRectRoom(30022, 'Sculpture Gallery', centerLat, centerLon + 0.0003, 1),
-        createDoor(40020, centerLat, centerLon - 0.0006, 1),
-        createStairs(50020, centerLat + 0.0003, centerLon + 0.0005, 1),
-        createElevator(60020, centerLat - 0.0003, centerLon + 0.0005, 1)
-      )
-
-      // Level 2 (Second Floor)
-      fallbackElements.push(
-        createRectRoom(30030, 'Print Room A', centerLat + 0.0001, centerLon - 0.0003, 2),
-        createRectRoom(30031, 'Print Room B', centerLat - 0.0001, centerLon - 0.0003, 2),
-        createRectRoom(30032, 'Drawing Gallery', centerLat, centerLon + 0.0003, 2),
-        createDoor(40030, centerLat, centerLon - 0.0006, 2),
-        createStairs(50030, centerLat + 0.0003, centerLon + 0.0005, 2),
-        createElevator(60030, centerLat - 0.0003, centerLon + 0.0005, 2)
-      )
-
-      // Build elements array in Overpass format
-      const osmData = { elements: [] }
-
-      Object.entries(nodes).forEach(([id, node]) => {
-        osmData.elements.push({ id: parseInt(id), type: 'node', lat: node.lat, lon: node.lon })
-      })
-
-      ways.forEach(way => {
-        osmData.elements.push({ ...way })
-      })
-
-      fallbackElements.forEach(feature => {
-        // Store in nodeCache for way rendering
-        feature.coordinates.forEach(([lat, lon]) => {
-          const nid = nodeId++
-          nodes[nid] = { lat, lon }
-          osmData.elements.push({ id: nid, type: 'node', lat, lon })
-        })
-      })
-
-      this.nodeCache = { ...this.nodeCache, ...nodes }
-      this.indoorWaysRef = [...this.indoorWaysRef, ...fallbackElements]
-
-      console.log(`[OSMMap] Loaded ${fallbackElements.length} fallback features`)
     },
     async fetchIndoorDataRaw() {
       const overpassQuery = `
@@ -916,10 +803,6 @@ export default {
             55.6870,12.5760,
             55.6900,12.5800
           );
-          way["indoor"~"^(stairs|steps|elevator)$"](
-            55.6870,12.5760,
-            55.6900,12.5800
-          );
           way["elevator"](
             55.6870,12.5760,
             55.6900,12.5800
@@ -932,11 +815,7 @@ export default {
             55.6870,12.5760,
             55.6900,12.5800
           );
-          node["highway"="elevator"](
-            55.6870,12.5760,
-            55.6900,12.5800
-          );
-          node["highway"="steps"](
+          node["highway"~"^(steps|elevator)$"](
             55.6870,12.5760,
             55.6900,12.5800
           );
@@ -967,7 +846,8 @@ export default {
 
       for (const endpoint of endpoints) {
         const controller = new AbortController()
-        const timeoutId = setTimeout(() => controller.abort(), 10000)
+        this.overpassControllers.push(controller)
+        const timeoutId = setTimeout(() => controller.abort(), 30000)
 
         try {
           const response = await fetch(endpoint, {
@@ -980,21 +860,29 @@ export default {
             signal: controller.signal
           })
 
-          clearTimeout(timeoutId)
-
           if (!response.ok) {
             throw new Error(`HTTP ${response.status}`)
           }
 
           const data = await response.json()
+          if (!Array.isArray(data?.elements)) {
+            throw new Error('Overpass returned an invalid response')
+          }
           console.log('Received OSM data:', data)
           return data
         } catch (err) {
-          clearTimeout(timeoutId)
+          if (!this.isComponentActive) {
+            throw err
+          }
           lastError = err.name === 'AbortError'
-            ? new Error(`Overpass API timed out after 10 seconds`)
+            ? new Error('Overpass API timed out after 30 seconds')
             : err
           console.warn(`Overpass endpoint failed (${endpoint}):`, lastError.message)
+        } finally {
+          clearTimeout(timeoutId)
+          this.overpassControllers = this.overpassControllers.filter(
+            activeController => activeController !== controller
+          )
         }
       }
 
@@ -1462,10 +1350,6 @@ export default {
 .route-info li {
   padding: 6px 0;
   font-size: 14px;
-}
-
-.building-info {
-  font-size: small;
 }
 
 /* ===== Drawer Transition Hooks (Vue-managed) ===== */

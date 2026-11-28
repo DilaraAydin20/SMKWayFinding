@@ -40,7 +40,7 @@ export default {
           throw new Error(`Search failed: ${response.status}`)
         }
         const data = await response.json()
-        this.artworks = data.results || []
+        this.artworks = data.artworks || []
       } catch (error) {
         console.error('Artwork search failed:', error)
         this.errorMessage = `Search failed: ${error.message}`

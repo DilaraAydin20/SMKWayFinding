@@ -6,7 +6,7 @@ Vue 3 + Leaflet indoor wayfinding system for Statens Museum for Kunst, Copenhage
 
 | Layer | Technology |
 |---|---|
-| **Framework** | Vue 3 (Composition API + `<script setup>`) |
+| **Framework** | Vue 3 |
 | **State Management** | Pinia |
 | **Map Rendering** | Leaflet.js + OpenStreetMap tiles |
 | **Build Tool** | Vite 5 |
@@ -14,12 +14,12 @@ Vue 3 + Leaflet indoor wayfinding system for Statens Museum for Kunst, Copenhage
 ## Project Structure
 
 ```
-src/
+frontend/src/
   App.vue                        # Root layout (header, map area, sidebar)
   main.js                        # Vue app entry point
   components/
     ArtworkAudioGuide.vue       # Multilingual artwork description playback
-    OSMMap.vue                 # Interactive floor plan with Overpass API integration
+    OSMMap.vue                  # Active Options API map with Overpass integration
     QRScanner.vue              # Camera-based QR code scanner for location/artwork detection
   stores/
     museumwayfinding.js        # Pinia store (current location, wayfinding route, history)

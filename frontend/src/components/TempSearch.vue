@@ -22,18 +22,27 @@ export default {
       this.artwork = null
 
       try {
-        const locale = this.$i18n.locale
-        const res = await fetch(
-          `https://api.smk.dk/api/v1/art/?object_number=${encodeURIComponent(nr)}&lang=${locale}`
-        )
-        if (!res.ok) throw new Error(`SMK API request failed with status ${res.status}`)
-        const item = (await res.json()).items?.[0]
-        if (!item) {
+        const response = await fetch(`/api/artworks/${encodeURIComponent(nr)}`)
+        if (response.status === 404) {
           this.error = this.$t('search.notFound', { number: nr })
-        } else {
-          this.artwork = item
+          return
         }
-      } catch {
+        if (!response.ok) {
+          throw new Error(`Artwork request failed with status ${response.status}`)
+        }
+
+        const item = await response.json()
+        this.artwork = {
+          id: item.smk_id,
+          object_number: item.smk_id,
+          name: item.title,
+          descriptions: {
+            da: item.description_da || '',
+            en: item.description_en || ''
+          }
+        }
+      } catch (error) {
+        console.error('Artwork search failed:', error)
         this.error = this.$t('search.error')
       } finally {
         this.loading = false
